@@ -11,43 +11,86 @@ from torchvision.models.segmentation import deeplabv3_resnet50
 from torch.utils.data import Dataset
 from PIL import Image
 import os
+from torchvision.datasets import Citysfrom torchvision.datasets import Cityscapes
+from torch.utils.data import DataLoader
+from PIL import Imagecapes
+import shutil
+
+
 
 
 
 # =====================
 # Transforms
 # =====================
-transform = transforms.Compose([
-    transforms.Resize((512, 1024)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                         std=[0.229, 0.224, 0.225])
-])
+#transform = transforms.Compose([
+#    transforms.Resize((512, 1024)),
+#   transforms.ToTensor(),
+#   transforms.Normalize(mean=[0.485, 0.456, 0.406],  #corrette perchè pre-addestriamo su Imagenet
+#                        std=[0.229, 0.224, 0.225])
+#])
 
 class LabelTransform:
-    def _init_(self, size=(512, 1024)):
+    def __init__(self, size=(512, 1024)):
         self.size = size
 
-    def _call_(self, mask):
+    def __call__(self, mask):
         mask = F.resize(mask, self.size, interpolation=F.InterpolationMode.NEAREST)
         return F.pil_to_tensor(mask).squeeze(0).long()
+
+
+# lab 1 transformations to vislize the images
+def transform_1():
+    # Define transformations for the dataset
+    transform = {
+        'train' : transforms.Compose([
+            transforms.RandomResizedCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            ]),
+        'val' : transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            ]),
+    }
+    return transform
+
+# lab 2 transformation to contruct the NN
+def transform_2():
+    transform = transforms.Compose([
+    transforms.Resize((224, 224)),  # Resize to fit the input dimensions of the network
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    return transform
 
 # =====================
 # Dataset & Dataloader
 # =====================
-train_dataset = CityScapes(
-    root_dir='/content/drive/MyDrive/Cityscapes',
+root_cityscapes = '/content/drive/MyDrive/Cityscapes'
+
+train_dataset = Cityscapes(
+    root=root_cityscapes,
     split='train',
+    mode='fine',
+    target_type='semantic',
     transform=transform,
     target_transform=LabelTransform()
 )
 
-val_dataset = CityScapes(
-    root_dir='/content/drive/MyDrive/Cityscapes',
+val_dataset = Cityscapes(
+    root=root_cityscapes,
     split='val',
+    mode='fine',
+    target_type='semantic', # restituisce le maschere di segmentazione semantica
     transform=transform,
-    target_transform=LabelTransform()
+    target_transform=LabelTransform() # serve per ridimensionare e convertire le maschere in tensori long, come richiesto dalla CrossEntropyLoss
+    #Nota: solo per ricordarci che possiamo trasformare ancora i dati per trainare meglio, ad es. horizontal flip, rotation, ecc. (Lab4)
 )
+
 
 train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=8)
 val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False)
