@@ -1,16 +1,10 @@
 # TODO: Define here your training and validation loops.
-
 import torch
 import torch.optim as optim
-import torchvision
 import torchvision.transforms as transforms
-import torchvision.models as models
 from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from torch import nn
-from torch.utils.data import Dataset
-from PIL import Image
-import os
 from download_dataset import *
 from datasets.cityscapes import *
 from models.deeplabv2.deeplabv2 import get_deeplab_v2
