@@ -12,6 +12,8 @@ from torch.utils.data import Dataset
 from PIL import Image
 import os
 from download_dataset import *
+from datasets.cityscapes import *
+from models.deeplabv2.deeplabv2 import get_deeplab_v2
 
 
 
@@ -37,39 +39,32 @@ class LabelTransform:
 
 
 # lab 1 transformations to vislize the images
-def transform_1():
+def transform():
     # Define transformations for the dataset
     transform = {
         'train' : transforms.Compose([
-            transforms.RandomResizedCrop(224),
+            transforms.RandomResizedCrop((512, 1024)),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
             ]),
         'val' : transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
+            transforms.Resize((512, 1024)),
+            transforms.CenterCrop((512, 1024)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
             ]),
     }
     return transform
 
-# lab 2 transformation to contruct the NN
-def transform_2():
-    transform = transforms.Compose([
-    transforms.Resize((224, 224)),  # Resize to fit the input dimensions of the network
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
-    return transform
+
 
 # =====================
 # Dataset & Dataloader
 # =====================
 root_cityscapes = './Cityscapes'
 
-train_dataset = Cityscapes(
+train_dataset = CityScapes(
     root=root_cityscapes,
     split='train',
     mode='fine',
@@ -78,7 +73,7 @@ train_dataset = Cityscapes(
     target_transform=LabelTransform()
 )
 
-val_dataset = Cityscapes(
+val_dataset = CityScapes(
     root=root_cityscapes,
     split='val',
     mode='fine',
