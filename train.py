@@ -2,19 +2,16 @@
 
 import torch
 import torch.optim as optim
+import torchvision
 import torchvision.transforms as transforms
 import torchvision.models as models
 from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from torch import nn
-from torchvision.models.segmentation import deeplabv3_resnet50
 from torch.utils.data import Dataset
 from PIL import Image
 import os
-from torchvision.datasets import Citysfrom torchvision.datasets import Cityscapes
-from torch.utils.data import DataLoader
-from PIL import Imagecapes
-import shutil
+from download_dataset import *
 
 
 
@@ -70,7 +67,7 @@ def transform_2():
 # =====================
 # Dataset & Dataloader
 # =====================
-root_cityscapes = '/content/drive/MyDrive/Cityscapes'
+root_cityscapes = './Cityscapes'
 
 train_dataset = Cityscapes(
     root=root_cityscapes,
@@ -85,11 +82,11 @@ val_dataset = Cityscapes(
     root=root_cityscapes,
     split='val',
     mode='fine',
-    target_type='semantic', # restituisce le maschere di segmentazione semantica
+    target_type='semantic',
     transform=transform,
-    target_transform=LabelTransform() # serve per ridimensionare e convertire le maschere in tensori long, come richiesto dalla CrossEntropyLoss
-    #Nota: solo per ricordarci che possiamo trasformare ancora i dati per trainare meglio, ad es. horizontal flip, rotation, ecc. (Lab4)
+    target_transform=LabelTransform()
 )
+
 
 
 train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=8)
@@ -103,7 +100,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = get_deeplab_v2(
     num_classes=19,
     pretrain=True,
-    pretrain_model_path='/content/drive/MyDrive/DeepLab_resnet_pretrained_imagenet.pth'
+    pretrain_model_path='deeplabv2_weights.pth'
 ).to(device)
 
 criterion = nn.CrossEntropyLoss()
@@ -115,29 +112,7 @@ optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 num_epochs = 10
 best_acc = 0
 
-for epoch in range(num_epochs):
-    model.train()
-    running_loss = 0.0
-
-    for images, masks in dataloader:
-        images = images.to(device)
-        masks = masks.to(device)
-
-        outputs = model(images)['out']  # 'out' è il campo per le previsioni pixel-wise
-        loss = criterion(outputs, masks)
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        running_loss += loss.item()
-
-    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(dataloader):.4f}")
-
-
-
-
-#Training loop
+#Training
 def train(epoch, model, train_loader, criterion, optimizer):
     model.train()
     running_loss = 0.0
@@ -164,7 +139,7 @@ def train(epoch, model, train_loader, criterion, optimizer):
     print(f'Train Epoch: {epoch} Loss: {train_loss:.6f} Acc: {train_accuracy:.2f}%')
 
 
-# Validation loop
+# Validation
 def validate(model, val_loader, criterion):
     model.eval()
     val_loss = 0
@@ -198,3 +173,24 @@ for epoch in range(1, num_epochs+1):
         best_acc = val_accuracy
         torch.save(model.state_dict(), 'best_model.pth')
         print(f'Model saved with accuracy: {best_acc:.2f}%')
+
+
+
+for epoch in range(num_epochs):
+    model.train()
+    running_loss = 0.0
+
+    for images, masks in dataloader:
+        images = images.to(device)
+        masks = masks.to(device)
+
+        outputs = model(images)['out']  # 'out' è il campo per le previsioni pixel-wise
+        loss = criterion(outputs, masks)
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+
+    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(dataloader):.4f}")
