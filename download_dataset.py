@@ -34,6 +34,7 @@ if not os.path.exists(weights_path):
 else:
     print('✔ Pesi DeepLabv2 già presenti.')
 
+'''
 # ================================
 # GTA5 Dataset (se hai il link)
 # ================================
@@ -52,3 +53,5 @@ if gta5_url and not os.path.exists(gta5_folder):
     print('✅ GTA5 pronto!')
 else:
     print('✔ GTA5 già presente oppure URL mancante.')
+
+'''

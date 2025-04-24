@@ -15,14 +15,16 @@ import os
 # Dataset Definition
 # =====================
 class CityScapes(Dataset):
-    def _init_(self, root_dir, split='train', transform=None, target_transform=None):
-        self.root_dir = root_dir
+    def __init__(self, root, split='train', mode='fine', target_type='semantic', transform=None, target_transform=None):
+        self.root_dir = root
         self.split = split
+        self.mode = mode
+        self.target_type = target_type
         self.transform = transform
         self.target_transform = target_transform
 
-        self.image_dir = os.path.join(root_dir, 'leftImg8bit', split)
-        self.label_dir = os.path.join(root_dir, 'gtFine', split)
+        self.image_dir = os.path.join(root, 'leftImg8bit', split)
+        self.label_dir = os.path.join(root, 'gtFine', split)
 
         self.image_paths = []
         self.label_paths = []
@@ -35,10 +37,10 @@ class CityScapes(Dataset):
                     label_file = file_name.replace('_leftImg8bit.png', '_gtFine_labelIds.png')
                     self.label_paths.append(os.path.join(self.label_dir, city, label_file))
 
-    def _len_(self):
+    def __len__(self):
         return len(self.image_paths)
 
-    def _getitem_(self, idx):
+    def __getitem__(self, idx):
         img = Image.open(self.image_paths[idx]).convert("RGB")
         label = Image.open(self.label_paths[idx])
 
