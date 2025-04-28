@@ -37,11 +37,11 @@ else:
 # ================================
 # GTA5 Dataset (se hai il link)
 # ================================
-'''
-gta5_zip = 'gta5.zip'
+
+gta5_zip = 'GTA5.zip'
 gta5_folder = './GTA5'  # o dove vuoi tu
 
-gta5_url = 'INSERISCI_LA_URL'  # metti qui il link corretto
+gta5_url = 'https://drive.google.com/file/d/1NGSaDgt0JiUr8NrMsAZ-Iuw4zc-w2p9t/view?usp=drive_link'  # metti qui il link corretto
 
 if gta5_url and not os.path.exists(gta5_folder):
     if not os.path.exists(gta5_zip):
@@ -53,4 +53,3 @@ if gta5_url and not os.path.exists(gta5_folder):
     print('✅ GTA5 pronto!')
 else:
     print('✔ GTA5 già presente oppure URL mancante.')
-'''
