@@ -44,7 +44,6 @@ gta5_zip = 'gta5.zip'
 gta5_folder = './GTA5'
 
 if not os.path.exists(gta5_folder):
-    print('ciao')
     if not os.path.exists(gta5_zip):
         print("📦 Scaricando GTA5...")
         gdown.download('https://drive.google.com/uc?id=1NGSaDgt0JiUr8NrMsAZ-Iuw4zc-w2p9t&export=download', gta5_zip, quiet=False)
