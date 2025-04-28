@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from torch import nn
-from download_dataset import *
+from datasets.download_dataset import *
 from datasets.cityscapes import *
 from metrics import benchmark_model, calculate_iou
 from models.deeplabv2.deeplabv2 import get_deeplab_v2
