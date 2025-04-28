@@ -5,7 +5,7 @@ from zipfile import ZipFile
 # ================================
 # Cityscapes
 # ================================
-'''
+
 cityscapes_zip = 'cityscapes.zip'
 cityscapes_folder = './Cityscapes'
 
@@ -19,11 +19,11 @@ if not os.path.exists(cityscapes_folder):
     print('✅ Cityscapes pronto!')
 else:
     print('✔ Cityscapes già presente, nessun download necessario.')
-'''
+
 # ================================
 # DeepLabv2 Weights
 # ================================
-'''
+
 weights_path = 'deeplabv2_weights.pth'
 if not os.path.exists(weights_path):
     print("💾 Scaricando pesi pre-addestrati DeepLabv2...")
@@ -35,7 +35,7 @@ if not os.path.exists(weights_path):
     print('✅ Pesi DeepLab scaricati.')
 else:
     print('✔ Pesi DeepLabv2 già presenti.')
-'''
+
 # ================================
 # GTA5 Dataset (se hai il link)
 # ================================
