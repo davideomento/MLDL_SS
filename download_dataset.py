@@ -37,6 +37,7 @@ else:
 # ================================
 # GTA5 Dataset (se hai il link)
 # ================================
+'''
 gta5_zip = 'gta5.zip'
 gta5_folder = './GTA5'  # o dove vuoi tu
 
@@ -52,3 +53,4 @@ if gta5_url and not os.path.exists(gta5_folder):
     print('✅ GTA5 pronto!')
 else:
     print('✔ GTA5 già presente oppure URL mancante.')
+'''

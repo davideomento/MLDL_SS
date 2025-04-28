@@ -3,11 +3,13 @@
 import torch
 import torch.optim as optim
 import torchvision.transforms as transforms
+import matplotlib.pyplot as plt
 from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from torch import nn
 from download_dataset import *
 from datasets.cityscapes import *
+from metrics import benchmark_model, calculate_iou
 from models.deeplabv2.deeplabv2 import get_deeplab_v2
 
 # =====================
@@ -163,7 +165,7 @@ for epoch in range(1, num_epochs + 1):
 # Compute metrics and benchmark
 # ================================
 
-if _name_ == "_main_":
+if __name__ == "_main_":
     # Config
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model = get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path='deeplabv2_weights.pth')
