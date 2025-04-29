@@ -10,7 +10,7 @@ from torch import nn
 from datasets.cityscapes import CityScapes
 from metrics import benchmark_model, calculate_iou
 from models.deeplabv2.deeplabv2 import get_deeplab_v2
-
+from tqdm import tqdm
 # =====================
 # Transforms
 # =====================
@@ -60,8 +60,8 @@ val_dataset = CityScapes(
     target_transform=LabelTransform()
 )
 
-train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=8)
-val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=8)
+train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=2)
 
 # =====================
 # Model, Loss, Optimizer
@@ -86,27 +86,21 @@ optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 def train(epoch, model, train_loader, criterion, optimizer):
     model.train()
     running_loss = 0.0
-    correct = 0
-    total = 0
 
-    for batch_idx, (inputs, targets) in enumerate(train_loader):
-        inputs, targets = inputs.to(device), targets.to(device)
+    loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}")
 
-        outputs = model(inputs)
-        loss = criterion(outputs, targets)
+    for batch_idx, (inputs, targets) in loop:
+        inputs, targets = inputs.cuda(), targets.cuda()
 
         optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
 
         running_loss += loss.item()
-        _, predicted = outputs.max(1)
-        correct += (predicted == targets).sum().item()
-        total += targets.numel()
+        loop.set_postfix(loss=running_loss / (batch_idx + 1))
 
-    train_loss = running_loss / len(train_loader)
-    train_accuracy = 100. * correct / total
-    print(f'Train Epoch: {epoch} | Loss: {train_loss:.6f} | Acc: {train_accuracy:.2f}%')
 
 def validate(model, val_loader, criterion, num_classes=19):
     model.eval()
