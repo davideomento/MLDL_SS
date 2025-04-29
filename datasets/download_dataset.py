@@ -24,7 +24,7 @@ else:
 # DeepLabv2 Weights
 # ================================
 
-weights_path = 'deeplabv2_weights.pth'
+weights_path = 'data/deeplabv2_weights.pth'
 if not os.path.exists(weights_path):
     print("💾 Scaricando pesi pre-addestrati DeepLabv2...")
     gdown.download(

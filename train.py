@@ -7,8 +7,7 @@ import matplotlib.pyplot as plt
 from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from torch import nn
-from datasets.download_dataset import *
-from datasets.cityscapes import *
+from datasets.cityscapes import CityScapes
 from metrics import benchmark_model, calculate_iou
 from models.deeplabv2.deeplabv2 import get_deeplab_v2
 
@@ -16,11 +15,11 @@ from models.deeplabv2.deeplabv2 import get_deeplab_v2
 # Transforms
 # =====================
 
-class LabelTransform:
-    def _init_(self, size=(512, 1024)):
+class LabelTransform():
+    def __init__(self, size=(512, 1024)):
         self.size = size
 
-    def _call_(self, mask):
+    def __call__(self, mask):
         mask = F.resize(mask, self.size, interpolation=F.InterpolationMode.NEAREST)
         return F.pil_to_tensor(mask).squeeze(0).long()
 
@@ -44,23 +43,19 @@ def get_transforms():
 # Dataset & Dataloader
 # =====================
 
-root_cityscapes = './Cityscapes'
+root_cityscapes = './data/Cityscapes/Cityspaces'
 transforms_dict = get_transforms()
 
 train_dataset = CityScapes(
-    root=root_cityscapes,
+    root_dir=root_cityscapes,
     split='train',
-    mode='fine',
-    target_type='semantic',
     transform=transforms_dict['train'],
     target_transform=LabelTransform()
 )
 
 val_dataset = CityScapes(
-    root=root_cityscapes,
+    root_dir=root_cityscapes,
     split='val',
-    mode='fine',
-    target_type='semantic',
     transform=transforms_dict['val'],
     target_transform=LabelTransform()
 )
@@ -77,7 +72,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = get_deeplab_v2(
     num_classes=19,
     pretrain=True,
-    pretrain_model_path='deeplabv2_weights.pth'
+    pretrain_model_path='data/deeplabv2_weights.pth'
 ).to(device)
 
 criterion = nn.CrossEntropyLoss()
@@ -165,7 +160,7 @@ for epoch in range(1, num_epochs + 1):
 # Compute metrics and benchmark
 # ================================
 
-if __name__ == "_main_":
+if __name__ == "__main__":
     # Config
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model = get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path='deeplabv2_weights.pth')
