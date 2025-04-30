@@ -1,55 +1,55 @@
 import os
-import gdown
 from zipfile import ZipFile
 
 # ================================
 # Cityscapes
 # ================================
 
-cityscapes_zip = 'cityscapes.zip'
+cityscapes_zip = '/content/drive/MyDrive/Cityscapes.zip'  # <-- Modifica questo path
 cityscapes_folder = './Cityscapes'
 
 if not os.path.exists(cityscapes_folder):
-    if not os.path.exists(cityscapes_zip):
-        print("📦 Scaricando Cityscapes...")
-        gdown.download('https://drive.google.com/uc?id=1WheH0FcXKYMIiqOQuF_QZf3JADM1zGEj', cityscapes_zip, quiet=False)
-    print("📂 Estraendo Cityscapes...")
-    with ZipFile(cityscapes_zip, 'r') as zip_ref:
-        zip_ref.extractall(cityscapes_folder)
-    print('✅ Cityscapes pronto!')
+    if os.path.exists(cityscapes_zip):
+        print("📂 Estraendo Cityscapes...")
+        with ZipFile(cityscapes_zip, 'r') as zip_ref:
+            zip_ref.extractall(cityscapes_folder)
+        print('✅ Cityscapes pronto!')
+    else:
+        print('❌ File Cityscapes ZIP non trovato al path specificato.')
 else:
-    print('✔ Cityscapes già presente, nessun download necessario.')
+    print('✔ Cityscapes già presente, nessun estrazione necessaria.')
 
 # ================================
 # DeepLabv2 Weights
 # ================================
 
-weights_path = 'deeplabv2_weights.pth'
-if not os.path.exists(weights_path):
-    print("💾 Scaricando pesi pre-addestrati DeepLabv2...")
-    gdown.download(
-        'https://drive.google.com/uc?id=1fcwW74wfXLoBZhJTMHlWZ_Y2q1fFDWT9',
-        weights_path,
-        quiet=False
-    )
-    print('✅ Pesi DeepLab scaricati.')
+weights_path = '/content/drive/MyDrive/deeplab_resnet_pretrained_imagenet.pth'  # <-- Modifica questo path
+local_weights = 'deeplabv2_weights.pth'
+
+if not os.path.exists(local_weights):
+    if os.path.exists(weights_path):
+        print("💾 Copiando pesi pre-addestrati DeepLabv2...")
+        os.system(f'cp "{weights_path}" "{local_weights}"')
+        print('✅ Pesi DeepLab copiati localmente.')
+    else:
+        print('❌ File dei pesi DeepLabv2 non trovato al path specificato.')
 else:
     print('✔ Pesi DeepLabv2 già presenti.')
 
 # ================================
-# GTA5 Dataset (se hai il link)
+# GTA5 Dataset
 # ================================
 
-gta5_zip = 'gta5.zip'
+gta5_zip = '/content/drive/MyDrive/GTA5.zip'  # <-- Modifica questo path
 gta5_folder = './GTA5'
 
 if not os.path.exists(gta5_folder):
-    if not os.path.exists(gta5_zip):
-        print("📦 Scaricando GTA5...")
-        gdown.download('https://drive.google.com/uc?id=1NGSaDgt0JiUr8NrMsAZ-Iuw4zc-w2p9t&export=download', gta5_zip, quiet=False)
-    print("📂 Estraendo GTA5...")
-    with ZipFile(gta5_zip, 'r') as zip_ref:
-        zip_ref.extractall(gta5_folder)
-    print('✅ GTA5 pronto!')
+    if os.path.exists(gta5_zip):
+        print("📂 Estraendo GTA5...")
+        with ZipFile(gta5_zip, 'r') as zip_ref:
+            zip_ref.extractall(gta5_folder)
+        print('✅ GTA5 pronto!')
+    else:
+        print('❌ File GTA5 ZIP non trovato al path specificato.')
 else:
-    print('✔ GTA5 già presente, nessun download necessario.')
+    print('✔ GTA5 già presente, nessuna estrazione necessaria.')
