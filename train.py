@@ -1,5 +1,3 @@
-# TODO: Define here your training and validation loops.
-
 import torch
 import torch.optim as optim
 import torchvision.transforms as transforms
@@ -11,6 +9,22 @@ from datasets.cityscapes import CityScapes
 from metrics import benchmark_model, calculate_iou
 from models.deeplabv2.deeplabv2 import get_deeplab_v2
 from tqdm import tqdm
+import random
+import numpy as np
+
+# =====================
+# Set Seed for Reproducibility
+# =====================
+def set_seed(seed=42):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+set_seed(42)
+
 # =====================
 # Transforms
 # =====================
@@ -20,8 +34,14 @@ class LabelTransform():
         self.size = size
 
     def __call__(self, mask):
+        # Resize
         mask = F.resize(mask, self.size, interpolation=F.InterpolationMode.NEAREST)
-        return F.pil_to_tensor(mask).squeeze(0).long()
+        # Convert to tensor and long
+        mask_tensor = F.pil_to_tensor(mask).squeeze(0).long()
+        # Set ignore index for 255
+        mask_tensor[mask_tensor == 255] = 0
+        return mask_tensor
+
 
 def get_transforms():
     return {
@@ -43,7 +63,7 @@ def get_transforms():
 # Dataset & Dataloader
 # =====================
 
-root_cityscapes = './data/Cityscapes/Cityspaces'
+root_cityscapes = './data/Cityscapes/Cityscapes/Cityspaces'
 transforms_dict = get_transforms()
 
 train_dataset = CityScapes(
@@ -60,8 +80,8 @@ val_dataset = CityScapes(
     target_transform=LabelTransform()
 )
 
-train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=2)
-val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=2)
+train_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=2)
 
 # =====================
 # Model, Loss, Optimizer
@@ -78,7 +98,6 @@ model = get_deeplab_v2(
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
-
 # =====================
 # Train / Validate
 # =====================
@@ -90,17 +109,21 @@ def train(epoch, model, train_loader, criterion, optimizer):
     loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}")
 
     for batch_idx, (inputs, targets) in loop:
-        inputs, targets = inputs.cuda(), targets.cuda()
+        inputs, targets = inputs.to(device), targets.to(device)
 
         optimizer.zero_grad()
         outputs = model(inputs)
+
+        # DeepLabV2 returns a tuple (output, aux), use outputs[0] if that's the case
+        if isinstance(outputs, (tuple, list)):
+            outputs = outputs[0]
+   
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
 
         running_loss += loss.item()
         loop.set_postfix(loss=running_loss / (batch_idx + 1))
-
 
 def validate(model, val_loader, criterion, num_classes=19):
     model.eval()
@@ -110,10 +133,13 @@ def validate(model, val_loader, criterion, num_classes=19):
     total_ious = []
 
     with torch.no_grad():
-        for batch_idx, (inputs, targets) in enumerate(val_loader):
+        loop = tqdm(enumerate(val_loader), total=len(val_loader), desc="Validating")
+        for batch_idx, (inputs, targets) in loop:
             inputs, targets = inputs.to(device), targets.to(device)
-
             outputs = model(inputs)
+            if isinstance(outputs, (tuple, list)):
+                outputs = outputs[0]
+
             loss = criterion(outputs, targets)
             val_loss += loss.item()
 
@@ -134,43 +160,37 @@ def validate(model, val_loader, criterion, num_classes=19):
     return val_accuracy, miou
 
 # =====================
-# Training Loop
+# Main Training Function
 # =====================
 
-num_epochs = 10
-best_acc = 0
+def main():
+    num_epochs = 10
+    best_miou = 0
 
-for epoch in range(1, num_epochs + 1):
-    train(epoch, model, train_dataloader, criterion, optimizer)
-    val_accuracy, miou = validate(model, val_dataloader, criterion)
+    for epoch in range(1, num_epochs + 1):
+        train(epoch, model, train_dataloader, criterion, optimizer)
+        val_accuracy, miou = validate(model, val_dataloader, criterion)
 
-    if val_accuracy > best_acc:
-        best_acc = val_accuracy
-        torch.save(model.state_dict(), 'best_model.pth')
-        print(f'Model saved with Acc: {best_acc:.2f}%, mIoU: {miou:.4f}')
+        if miou > best_miou:
+            best_miou = miou
+            torch.save(model.state_dict(), 'best_model.pth')
+            print(f'Model saved with mIoU: {miou:.4f}')
 
+    # Final Evaluation
+    model.load_state_dict(torch.load('best_model.pth'))
+    validate(model, val_dataloader, criterion)
 
-# ================================
-# Compute metrics and benchmark
-# ================================
-
-if __name__ == "__main__":
-    # Config
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model = get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path='deeplabv2_weights.pth')
-
-    # Esegui benchmark
+    # Benchmarking
+    model.eval()
+    model.to(device)
     df = benchmark_model(model, image_size=(3, 512, 1024), iterations=200, device=device)
 
-    # Salvataggio CSV
+    # Save Benchmark Results
     csv_path = 'benchmark_results.csv'
     df.to_csv(csv_path, index=False)
     print(f"✔ Risultati salvati in: {csv_path}")
 
-    # Mostra primi risultati
-    print(df.head())
-
-    # Grafico Latency
+    # Latency Plot
     plt.figure(figsize=(10, 4))
     plt.plot(df['iteration'], df['latency_s'], label='Latency (s)')
     plt.title('Latency per Iteration')
@@ -181,7 +201,7 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.show()
 
-    # Grafico FPS
+    # FPS Plot
     plt.figure(figsize=(10, 4))
     plt.plot(df['iteration'], df['fps'], label='FPS', color='green')
     plt.title('FPS per Iteration')
@@ -191,3 +211,6 @@ if __name__ == "__main__":
     plt.legend()
     plt.tight_layout()
     plt.show()
+
+if __name__ == "__main__":
+    main()
