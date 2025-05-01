@@ -5,4 +5,6 @@
 __pycache__/
 
 #Dataset
-data/
+Cityscapes
+GTA5
+deeplabv2_weights.pth
