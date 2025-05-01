@@ -1,5 +1,6 @@
 import os
 from zipfile import ZipFile
+from tqdm import tqdm
 
 # ================================
 # Cityscapes
@@ -12,12 +13,14 @@ if not os.path.exists(cityscapes_folder):
     if os.path.exists(cityscapes_zip):
         print("📂 Estraendo Cityscapes...")
         with ZipFile(cityscapes_zip, 'r') as zip_ref:
-            zip_ref.extractall('./')
+            members = zip_ref.namelist()
+            for member in tqdm(members, desc="Estrazione Cityscapes", unit="file"):
+                zip_ref.extract(member, './')
         print('✅ Cityscapes pronto!')
     else:
         print('❌ File Cityscapes ZIP non trovato al path specificato.')
 else:
-    print('✔ Cityscapes già presente, nessun estrazione necessaria.')
+    print('✔ Cityscapes già presente, nessuna estrazione necessaria.')
 
 # ================================
 # DeepLabv2 Weights
@@ -47,7 +50,9 @@ if not os.path.exists(gta5_folder):
     if os.path.exists(gta5_zip):
         print("📂 Estraendo GTA5...")
         with ZipFile(gta5_zip, 'r') as zip_ref:
-            zip_ref.extractall('./')
+            members = zip_ref.namelist()
+            for member in tqdm(members, desc="Estrazione GTA5", unit="file"):
+                zip_ref.extract(member, './')
         print('✅ GTA5 pronto!')
     else:
         print('❌ File GTA5 ZIP non trovato al path specificato.')
