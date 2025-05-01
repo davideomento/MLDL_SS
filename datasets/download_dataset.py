@@ -12,7 +12,7 @@ if not os.path.exists(cityscapes_folder):
     if os.path.exists(cityscapes_zip):
         print("📂 Estraendo Cityscapes...")
         with ZipFile(cityscapes_zip, 'r') as zip_ref:
-            zip_ref.extractall(cityscapes_folder)
+            zip_ref.extractall('./')
         print('✅ Cityscapes pronto!')
     else:
         print('❌ File Cityscapes ZIP non trovato al path specificato.')
@@ -47,7 +47,7 @@ if not os.path.exists(gta5_folder):
     if os.path.exists(gta5_zip):
         print("📂 Estraendo GTA5...")
         with ZipFile(gta5_zip, 'r') as zip_ref:
-            zip_ref.extractall(gta5_folder)
+            zip_ref.extractall('./')
         print('✅ GTA5 pronto!')
     else:
         print('❌ File GTA5 ZIP non trovato al path specificato.')

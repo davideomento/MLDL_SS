@@ -63,7 +63,7 @@ def get_transforms():
 # Dataset & Dataloader
 # =====================
 
-root_cityscapes = './data/Cityscapes/Cityscapes/Cityspaces'
+root_cityscapes = './Cityscapes/Cityscapes/Cityspaces'
 transforms_dict = get_transforms()
 
 train_dataset = CityScapes(
@@ -92,7 +92,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = get_deeplab_v2(
     num_classes=19,
     pretrain=True,
-    pretrain_model_path='data/deeplabv2_weights.pth'
+    pretrain_model_path='deeplabv2_weights.pth'
 ).to(device)
 
 criterion = nn.CrossEntropyLoss()
