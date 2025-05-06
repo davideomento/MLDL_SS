@@ -4,6 +4,7 @@
 # Python
 __pycache__/
 
-# Extracted folder
-Cytyscapes
+#Dataset
+Cityscapes
 GTA5
+deeplabv2_weights.pth
