@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from torch import nn
 from datasets.cityscapes import CityScapes
 from metrics import benchmark_model, calculate_iou
-from models.deeplabv2.deeplabv2 import get_deeplab_v2
+from models.bisenet.build_bisenet import 
 from tqdm import tqdm
 import random
 import numpy as np
