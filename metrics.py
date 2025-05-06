@@ -15,24 +15,23 @@ model = get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path='/cont
 # Utils - mIoU
 # =====================
 
-def calculate_iou(preds, labels, num_classes=19):
+def calculate_iou(predicted, target, num_classes, ignore_index=255):
+    # Maschera per escludere i pixel da ignorare
+    mask = target != ignore_index
+    
     ious = []
-    preds = preds.view(-1)
-    labels = labels.view(-1)
-
-    for cls in range(num_classes):
-        pred_inds = preds == cls
-        label_inds = labels == cls
-
-        intersection = (pred_inds & label_inds).sum().item()
-        union = (pred_inds | label_inds).sum().item()
-
+    for i in range(num_classes):
+        # Consideriamo solo i pixel che non sono da ignorare
+        intersection = ((predicted == i) & (target == i) & mask).sum().item()
+        union = ((predicted == i) | (target == i) & mask).sum().item()
+        
         if union == 0:
-            ious.append(float('nan'))  # classe non presente
+            iou = float('nan')  # Se non ci sono pixel di quella classe, mettiamo NaN
         else:
-            ious.append(intersection / union)
-
+            iou = intersection / union
+        ious.append(iou)
     return ious
+
 
 
 def benchmark_model(model: torch.nn.Module,

@@ -43,8 +43,6 @@ class LabelTransform():
         mask = F.resize(mask, self.size, interpolation=F.InterpolationMode.NEAREST)
         # Convert to tensor and long
         mask_tensor = F.pil_to_tensor(mask).squeeze(0).long()
-        # Set ignore index for 255
-        mask_tensor[mask_tensor == 255] = 0
         return mask_tensor
 
 
@@ -100,7 +98,7 @@ model = get_bisenet(
     pretrained_weights = resnet18_weights 
 ).to(device)
 
-criterion = nn.CrossEntropyLoss()
+criterion = nn.CrossEntropyLoss(ignore_index=255)
 optimizer = optim.SGD(model.parameters(), lr=0.025, momentum=0.9, weight_decay=0.0001)
 
 # =====================
@@ -152,7 +150,7 @@ def validate(model, val_loader, criterion, num_classes=19):
             correct += (predicted == targets).sum().item()
             total += targets.numel()
 
-            ious = calculate_iou(predicted, targets, num_classes)
+            ious = calculate_iou(predicted, targets, num_classes, ignore_index=255)
             total_ious.append(ious)
 
     val_loss /= len(val_loader)
