@@ -97,7 +97,8 @@ model = get_deeplab_v2(
 ).to(device)
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+optimizer = torch.optim.SGD(model.optim_parameters(lr=0.001), momentum=0.9, weight_decay=0.0005)
+
 
 # =====================
 # Train / Validate

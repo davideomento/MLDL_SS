@@ -3,7 +3,11 @@ from torch import nn
 from .build_contextpath import build_contextpath
 import warnings
 warnings.filterwarnings(action='ignore')
+import torchvision.models as models
 
+# Carica il modello ResNet18 pre-addestrato su ImageNet
+resnet18 = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+resnet18_weights = resnet18.state_dict()
 
 class ConvBlock(torch.nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=2, padding=1):
@@ -168,3 +172,17 @@ class BiSeNet(torch.nn.Module):
             return result, cx1_sup, cx2_sup
 
         return result
+
+
+def get_bisenet(num_classes=19, pretrain=True, pretrained_weights = resnet18_weights):
+    model = BiSeNet(num_classes, context_path='resnet18')
+
+    # Pretraining loading
+    if pretrain:
+        new_params = model.state_dict().copy()
+        for i in pretrained_weights:
+            i_parts = i.split('.')
+            new_params['.'.join(i_parts[1:])] = pretrained_weights[i]
+        model.load_state_dict(new_params, strict=False)
+
+    return model 

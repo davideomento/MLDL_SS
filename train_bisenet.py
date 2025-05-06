@@ -7,10 +7,11 @@ from torch.utils.data import DataLoader
 from torch import nn
 from datasets.cityscapes import CityScapes
 from metrics import benchmark_model, calculate_iou
-from models.bisenet.build_bisenet import 
+from models.deeplabv2.deeplabv2 import get_deeplab_v2
 from tqdm import tqdm
 import random
 import numpy as np
+import os 
 
 # =====================
 # Set Seed for Reproducibility
@@ -164,20 +165,51 @@ def validate(model, val_loader, criterion, num_classes=19):
 # =====================
 
 def main():
-    num_epochs = 10
-    best_miou = 0
+    save_dir = '/content/drive/MyDrive/checkpoints'
+    os.makedirs(save_dir, exist_ok=True)
 
-    for epoch in range(1, num_epochs + 1):
+    best_model_path = os.path.join(save_dir, 'best_model.pth')
+    checkpoint_path = os.path.join(save_dir, 'checkpoint.pth')
+
+    num_epochs = 50
+    save_every = 1  # salva ogni 5 epoche
+    checkpoint_path = "checkpoint.pth"
+
+    best_miou = 0
+    start_epoch = 1  # di default si parte dalla prima epoca
+
+    # Se esiste un checkpoint, lo carichiamo
+    if os.path.exists(checkpoint_path):
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint['model_state'])
+        optimizer.load_state_dict(checkpoint['optimizer_state'])
+        best_miou = checkpoint['best_miou']
+        start_epoch = checkpoint['epoch'] + 1
+        print(f"✔ Ripreso da epoca {checkpoint['epoch']} con mIoU: {best_miou:.4f}")
+
+    # Ciclo di addestramento
+    for epoch in range(start_epoch, num_epochs + 1):
         train(epoch, model, train_dataloader, criterion, optimizer)
         val_accuracy, miou = validate(model, val_dataloader, criterion)
 
         if miou > best_miou:
             best_miou = miou
             torch.save(model.state_dict(), 'best_model.pth')
-            print(f'Model saved with mIoU: {miou:.4f}')
+            print(f"✅ Best model salvato con mIoU: {miou:.4f}")
 
-    # Final Evaluation
-    model.load_state_dict(torch.load('best_model.pth'))
+        # Salva il checkpoint ogni N epoche
+        if epoch % save_every == 0:
+            checkpoint = {
+                'epoch': epoch,
+                'model_state': model.state_dict(),
+                'optimizer_state': optimizer.state_dict(),
+                'best_miou': best_miou
+            }
+            torch.save(checkpoint, checkpoint_path)
+            print(f"💾 Checkpoint salvato all’epoca {epoch}")
+
+    # Valutazione finale
+    model.load_state_dict(torch.load(best_model_path))
     validate(model, val_dataloader, criterion)
 
     # Benchmarking
