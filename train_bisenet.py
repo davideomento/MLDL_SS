@@ -7,11 +7,15 @@ from torch.utils.data import DataLoader
 from torch import nn
 from datasets.cityscapes import CityScapes
 from metrics import benchmark_model, calculate_iou
-from models.deeplabv2.deeplabv2 import get_deeplab_v2
+from models.bisenet.build_bisenet import get_bisenet
 from tqdm import tqdm
 import random
 import numpy as np
 import os 
+import torchvision.models as models
+
+resnet18 = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+resnet18_weights = resnet18.state_dict()
 
 # =====================
 # Set Seed for Reproducibility
@@ -90,14 +94,14 @@ val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_worker
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model = get_deeplab_v2(
+model = get_bisenet(
     num_classes=19,
     pretrain=True,
-    pretrain_model_path='/content/MLDL_SS/deeplabv2_weights.pth'
+    pretrained_weights = resnet18_weights 
 ).to(device)
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+optimizer = optim.SGD(model.parameters(), lr=0.025, momentum=0.9, weight_decay=0.0001)
 
 # =====================
 # Train / Validate
@@ -168,12 +172,11 @@ def main():
     save_dir = '/content/drive/MyDrive/checkpoints'
     os.makedirs(save_dir, exist_ok=True)
 
-    best_model_path = os.path.join(save_dir, 'best_model.pth')
-    checkpoint_path = os.path.join(save_dir, 'checkpoint.pth')
+    best_model_path = os.path.join(save_dir, 'best_model_bisenet.pth')
+    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet.pth')
 
     num_epochs = 50
-    save_every = 1  # salva ogni 5 epoche
-    checkpoint_path = "checkpoint.pth"
+    save_every = 1  # salva ogni epoca
 
     best_miou = 0
     start_epoch = 1  # di default si parte dalla prima epoca
@@ -194,7 +197,7 @@ def main():
 
         if miou > best_miou:
             best_miou = miou
-            torch.save(model.state_dict(), 'best_model.pth')
+            torch.save(model.state_dict(), 'best_model_bisenet.pth')
             print(f"✅ Best model salvato con mIoU: {miou:.4f}")
 
         # Salva il checkpoint ogni N epoche
@@ -208,19 +211,16 @@ def main():
             torch.save(checkpoint, checkpoint_path)
             print(f"💾 Checkpoint salvato all’epoca {epoch}")
 
+        if epoch % 10 == 0:
+            model.eval()
+            df = benchmark_model(model, image_size=(3, 512, 1024), iterations=100, device=device)
+            csv_path = os.path.join(save_dir, f'benchmark_epoch_{epoch}.csv')
+            df.to_csv(csv_path, index=False)
+            print(f"📊 Benchmark salvato: {csv_path}")
+
     # Valutazione finale
     model.load_state_dict(torch.load(best_model_path))
     validate(model, val_dataloader, criterion)
-
-    # Benchmarking
-    model.eval()
-    model.to(device)
-    df = benchmark_model(model, image_size=(3, 512, 1024), iterations=200, device=device)
-
-    # Save Benchmark Results
-    csv_path = 'benchmark_results.csv'
-    df.to_csv(csv_path, index=False)
-    print(f"✔ Risultati salvati in: {csv_path}")
 
     # Latency Plot
     plt.figure(figsize=(10, 4))
