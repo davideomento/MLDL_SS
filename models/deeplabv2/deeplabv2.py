@@ -171,7 +171,7 @@ class ResNetMulti(nn.Module):
                 {'params': self.get_10x_lr_params(), 'lr': 10 * lr}]
 
 
-def get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path='DeepLab_resnet_pretrained_imagenet.pth'):
+def get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path='/content/MLDL_SS/deeplabv2_weights.pth'):
     model = ResNetMulti(Bottleneck, [3, 4, 23, 3], num_classes)
 
     # Pretraining loading

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from models.deeplabv2.deeplabv2 import get_deeplab_v2
 
 
-model = get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path='deeplabv2_weights.pth')
+model = get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path='/content/MLDL_SS/deeplabv2_weights.pth')
 
 
 # =====================
