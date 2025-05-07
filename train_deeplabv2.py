@@ -36,7 +36,7 @@ is_kaggle = os.path.exists('/kaggle')
 if is_colab:
     print("📍 Ambiente: Colab")
     base_path = '/content/drive/MyDrive/Project_MLDL'  # ← Personalizza se serve
-    data_dir = '/content/Cityscapes/Cityspaces'
+    data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
     pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
 elif is_kaggle:
     print("📍 Ambiente: Kaggle")
