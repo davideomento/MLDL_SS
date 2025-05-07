@@ -39,19 +39,16 @@ is_kaggle = os.path.exists('/kaggle')
 
 if is_colab:
     print("📍 Ambiente: Colab")
-    base_path = '/content/drive/MyDrive'
-    data_dir = '/content/Cityscapes/Cityspaces'
-    pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
+    base_path = '/content/drive/MyDrive/Project_MLDL'  # ← Personalizza se serve
+    data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
 elif is_kaggle:
     print("📍 Ambiente: Kaggle")
     base_path = '/kaggle/working'
     data_dir = '/kaggle/input/Cityscapes'
-    pretrain_model_path = '/kaggle/input/deeplab_resnet_pretrained_imagenet.pth'
 else:
     print("📍 Ambiente: Locale")
     base_path = './'
     data_dir = './Cityscapes/Cityspaces'
-    pretrain_model_path = './deeplabv2_weights.pth'
 
 save_dir = os.path.join(base_path, 'checkpoints')
 os.makedirs(save_dir, exist_ok=True)
@@ -193,8 +190,8 @@ def validate(model, val_loader, criterion, num_classes=19):
 # =====================
 
 def main():
-    best_model_path = os.path.join(save_dir, 'best_model_deeplab.pth')
-    checkpoint_path = os.path.join(save_dir, 'checkpoint_deeplab.pth')
+    best_model_path = os.path.join(save_dir, 'best_model_bisenet.pth')
+    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet.pth')
 
 
     num_epochs = 50
@@ -219,7 +216,7 @@ def main():
 
         if miou > best_miou:
             best_miou = miou
-            torch.save(model.state_dict(), 'best_model_bisenet.pth')
+            torch.save(model.state_dict(), best_model_path)
             print(f"✅ Best model salvato con mIoU: {miou:.4f}")
 
         # Salva il checkpoint ogni N epoche

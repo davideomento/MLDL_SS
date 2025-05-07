@@ -1,18 +1,21 @@
-import os
-import random
-import numpy as np
 import torch
-import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
-from torch.utils.data import DataLoader
 from torchvision.transforms import functional as F
-from tqdm import tqdm
-
+from torch.utils.data import DataLoader
+from torch import nn
 from datasets.cityscapes import CityScapes
-from models.deeplabv2.deeplabv2 import get_deeplab_v2
 from metrics import benchmark_model, calculate_iou
+from models.bisenet.build_bisenet import get_bisenet
+from tqdm import tqdm
+import random
+import numpy as np
+import os 
+import torchvision.models as models
+
+resnet18 = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+resnet18_weights = resnet18.state_dict()
 
 # =====================
 # Set Seed for Reproducibility
@@ -30,24 +33,22 @@ set_seed(42)
 # ================================
 # Ambiente (Colab, Kaggle, Locale)
 # ================================
+
 is_colab = 'COLAB_GPU' in os.environ
 is_kaggle = os.path.exists('/kaggle')
 
 if is_colab:
     print("📍 Ambiente: Colab")
     base_path = '/content/drive/MyDrive/Project_MLDL'  # ← Personalizza se serve
-    data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-    pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
+    data_dir = '/content/Cityscapes/Cityspaces'
 elif is_kaggle:
     print("📍 Ambiente: Kaggle")
     base_path = '/kaggle/working'
     data_dir = '/kaggle/input/Cityscapes'
-    pretrain_model_path = '/kaggle/input/deeplab_resnet_pretrained_imagenet.pth'
 else:
     print("📍 Ambiente: Locale")
     base_path = './'
     data_dir = './Cityscapes/Cityspaces'
-    pretrain_model_path = './deeplabv2_weights.pth'
 
 save_dir = os.path.join(base_path, 'checkpoints')
 os.makedirs(save_dir, exist_ok=True)
@@ -55,14 +56,18 @@ os.makedirs(save_dir, exist_ok=True)
 # =====================
 # Transforms
 # =====================
+
 class LabelTransform():
     def __init__(self, size=(512, 1024)):
         self.size = size
 
     def __call__(self, mask):
+        # Resize
         mask = F.resize(mask, self.size, interpolation=F.InterpolationMode.NEAREST)
+        # Convert to tensor and long
         mask_tensor = F.pil_to_tensor(mask).squeeze(0).long()
         return mask_tensor
+
 
 def get_transforms():
     return {
@@ -80,48 +85,53 @@ def get_transforms():
         ]),
     }
 
-transforms_dict = get_transforms()
-
 # =====================
 # Dataset & Dataloader
 # =====================
+
+root_cityscapes = './Cityscapes/Cityspaces'
+transforms_dict = get_transforms()
+
 train_dataset = CityScapes(
-    root_dir=data_dir,
+    root_dir=root_cityscapes,
     split='train',
     transform=transforms_dict['train'],
     target_transform=LabelTransform()
 )
 
 val_dataset = CityScapes(
-    root_dir=data_dir,
+    root_dir=root_cityscapes,
     split='val',
     transform=transforms_dict['val'],
     target_transform=LabelTransform()
 )
 
-train_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=2)
-val_dataloader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=2)
+train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=6)
+val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=6)
 
 # =====================
 # Model, Loss, Optimizer
 # =====================
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model = get_deeplab_v2(
+model = get_bisenet(
     num_classes=19,
     pretrain=True,
-    pretrain_model_path=pretrain_model_path
+    pretrained_weights = resnet18_weights 
 ).to(device)
 
 criterion = nn.CrossEntropyLoss(ignore_index=255)
-optimizer = optim.SGD(model.optim_parameters(lr=0.001), momentum=0.9, weight_decay=0.0005)
+optimizer = optim.SGD(model.parameters(), lr=0.025, momentum=0.9, weight_decay=0.0001)
 
 # =====================
 # Train / Validate
 # =====================
+
 def train(epoch, model, train_loader, criterion, optimizer):
     model.train()
     running_loss = 0.0
+
     loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}")
 
     for batch_idx, (inputs, targets) in loop:
@@ -129,9 +139,11 @@ def train(epoch, model, train_loader, criterion, optimizer):
 
         optimizer.zero_grad()
         outputs = model(inputs)
+
+        # DeepLabV2 returns a tuple (output, aux), use outputs[0] if that's the case
         if isinstance(outputs, (tuple, list)):
             outputs = outputs[0]
-
+   
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
@@ -166,6 +178,7 @@ def validate(model, val_loader, criterion, num_classes=19):
 
     val_loss /= len(val_loader)
     val_accuracy = 100. * correct / total
+
     iou_per_class = torch.tensor(total_ious).nanmean(dim=0)
     miou = iou_per_class.nanmean().item()
 
@@ -173,17 +186,21 @@ def validate(model, val_loader, criterion, num_classes=19):
     return val_accuracy, miou
 
 # =====================
-# Main Training Loop
+# Main Training Function
 # =====================
+
 def main():
     best_model_path = os.path.join(save_dir, 'best_model_deeplab.pth')
     checkpoint_path = os.path.join(save_dir, 'checkpoint_deeplab.pth')
 
-    num_epochs = 50
-    save_every = 1
-    best_miou = 0
-    start_epoch = 1
 
+    num_epochs = 50
+    save_every = 1  # salva ogni epoca
+
+    best_miou = 0
+    start_epoch = 1  # di default si parte dalla prima epoca
+
+    # Se esiste un checkpoint, lo carichiamo
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['model_state'])
@@ -192,15 +209,17 @@ def main():
         start_epoch = checkpoint['epoch'] + 1
         print(f"✔ Ripreso da epoca {checkpoint['epoch']} con mIoU: {best_miou:.4f}")
 
+    # Ciclo di addestramento
     for epoch in range(start_epoch, num_epochs + 1):
         train(epoch, model, train_dataloader, criterion, optimizer)
         val_accuracy, miou = validate(model, val_dataloader, criterion)
 
         if miou > best_miou:
             best_miou = miou
-            torch.save(model.state_dict(), best_model_path)
+            torch.save(model.state_dict(), 'best_model_bisenet.pth')
             print(f"✅ Best model salvato con mIoU: {miou:.4f}")
 
+        # Salva il checkpoint ogni N epoche
         if epoch % save_every == 0:
             checkpoint = {
                 'epoch': epoch,
@@ -209,7 +228,7 @@ def main():
                 'best_miou': best_miou
             }
             torch.save(checkpoint, checkpoint_path)
-            print(f"📂 Checkpoint salvato all'epoca {epoch}")
+            print(f"💾 Checkpoint salvato all’epoca {epoch}")
 
         if epoch % 10 == 0:
             model.eval()
@@ -218,10 +237,11 @@ def main():
             df.to_csv(csv_path, index=False)
             print(f"📊 Benchmark salvato: {csv_path}")
 
+    # Valutazione finale
     model.load_state_dict(torch.load(best_model_path))
     validate(model, val_dataloader, criterion)
 
-    # Plot
+    # Latency Plot
     plt.figure(figsize=(10, 4))
     plt.plot(df['iteration'], df['latency_s'], label='Latency (s)')
     plt.title('Latency per Iteration')
@@ -232,6 +252,7 @@ def main():
     plt.tight_layout()
     plt.show()
 
+    # FPS Plot
     plt.figure(figsize=(10, 4))
     plt.plot(df['iteration'], df['fps'], label='FPS', color='green')
     plt.title('FPS per Iteration')

@@ -79,6 +79,7 @@ class ResNetMulti(nn.Module):
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=1, dilation=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=1, dilation=4)
+        self.multi_level = False
         self.layer6 = ClassifierModule(2048, [6, 12, 18, 24], [6, 12, 18, 24], num_classes)
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
