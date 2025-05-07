@@ -190,8 +190,8 @@ def validate(model, val_loader, criterion, num_classes=19):
 # =====================
 
 def main():
-    best_model_path = os.path.join(save_dir, 'best_model_deeplab.pth')
-    checkpoint_path = os.path.join(save_dir, 'checkpoint_deeplab.pth')
+    best_model_path = os.path.join(save_dir, 'best_model_bisenet.pth')
+    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet.pth')
 
 
     num_epochs = 50
