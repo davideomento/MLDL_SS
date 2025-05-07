@@ -1,6 +1,25 @@
 import os
 from zipfile import ZipFile
 from tqdm import tqdm
+import shutil
+
+# ================================
+# Rileva ambiente
+# ================================
+is_colab = 'COLAB_GPU' in os.environ
+is_kaggle = os.path.exists('/kaggle')
+
+if is_colab:
+    print("📍 Ambiente: Colab")
+    base_drive_path = '/content/drive/MyDrive/'  # ← Personalizza se serve
+    working_dir = './'
+elif is_kaggle:
+    print("📍 Ambiente: Kaggle")
+    base_drive_path = '/kaggle/input'  # I dataset sono già in '/kaggle/input'
+    working_dir = '/kaggle/working'
+else:
+    base_drive_path = './'
+    working_dir = './'
 
 # ================================
 # Cityscapes
@@ -15,16 +34,17 @@ if not os.path.exists(cityscapes_folder):
         with ZipFile(cityscapes_zip, 'r') as zip_ref:
             members = zip_ref.namelist()
             for member in tqdm(members, desc="Estrazione Cityscapes", unit="file"):
-                zip_ref.extract(member, './')
+                zip_ref.extract(member, working_dir)
         print('✅ Cityscapes pronto!')
     else:
-        print('❌ File Cityscapes ZIP non trovato al path specificato.')
+        print('❌ File Cityscapes ZIP non trovato.')
 else:
-    print('✔ Cityscapes già presente, nessuna estrazione necessaria.')
+    print('✔ Cityscapes già presente.')
 
 # ================================
 # DeepLabv2 Weights
 # ================================
+
 
 weights_path = '/content/drive/MyDrive/deeplab_resnet_pretrained_imagenet.pth'  # <-- Modifica questo path
 local_weights = 'deeplabv2_weights.pth'
@@ -40,7 +60,7 @@ else:
     print('✔ Pesi DeepLabv2 già presenti.')
 
 # ================================
-# GTA5 Dataset
+# GTA5
 # ================================
 
 gta5_zip = '/content/drive/MyDrive/GTA5.zip'  # <-- Modifica questo path
