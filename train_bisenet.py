@@ -216,7 +216,7 @@ def main():
 
         if miou > best_miou:
             best_miou = miou
-            torch.save(model.state_dict(), 'best_model_bisenet.pth')
+            torch.save(model.state_dict(), best_model_path)
             print(f"✅ Best model salvato con mIoU: {miou:.4f}")
 
         # Salva il checkpoint ogni N epoche
