@@ -11,7 +11,7 @@ is_kaggle = os.path.exists('/kaggle')
 
 if is_colab:
     print("📍 Ambiente: Colab")
-    base_drive_path = '/content/drive/MyDrive'  # ← Personalizza se serve
+    base_drive_path = '/content/drive/MyDrive/Project_MLDL'  # ← Personalizza se serve
     working_dir = './'
 elif is_kaggle:
     print("📍 Ambiente: Kaggle")
