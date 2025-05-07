@@ -11,13 +11,14 @@ is_kaggle = os.path.exists('/kaggle')
 
 if is_colab:
     print("📍 Ambiente: Colab")
-    base_drive_path = '/content/drive/MyDrive/'  # ← Personalizza se serve
+    base_drive_path = '/content/drive/MyDrive'  # ← Personalizza se serve
     working_dir = './'
 elif is_kaggle:
     print("📍 Ambiente: Kaggle")
     base_drive_path = '/kaggle/input'  # I dataset sono già in '/kaggle/input'
     working_dir = '/kaggle/working'
 else:
+    print("📍 Ambiente: Locale")
     base_drive_path = './'
     working_dir = './'
 
@@ -25,8 +26,8 @@ else:
 # Cityscapes
 # ================================
 
-cityscapes_zip = '/content/drive/MyDrive/Cityscapes.zip'  # <-- Modifica questo path
-cityscapes_folder = './Cityscapes'
+cityscapes_zip = os.path.join(base_drive_path, 'Cityscapes.zip')
+cityscapes_folder = os.path.join(working_dir, 'Cityscapes')
 
 if not os.path.exists(cityscapes_folder):
     if os.path.exists(cityscapes_zip):
@@ -37,7 +38,7 @@ if not os.path.exists(cityscapes_folder):
                 zip_ref.extract(member, working_dir)
         print('✅ Cityscapes pronto!')
     else:
-        print('❌ File Cityscapes ZIP non trovato.')
+        print(f'❌ File Cityscapes ZIP non trovato: {cityscapes_zip}')
 else:
     print('✔ Cityscapes già presente.')
 
@@ -45,17 +46,16 @@ else:
 # DeepLabv2 Weights
 # ================================
 
-
-weights_path = '/content/drive/MyDrive/deeplab_resnet_pretrained_imagenet.pth'  # <-- Modifica questo path
-local_weights = 'deeplabv2_weights.pth'
+weights_path = os.path.join(base_drive_path, 'deeplab_resnet_pretrained_imagenet.pth')
+local_weights = os.path.join(working_dir, 'deeplabv2_weights.pth')
 
 if not os.path.exists(local_weights):
     if os.path.exists(weights_path):
         print("💾 Copiando pesi pre-addestrati DeepLabv2...")
-        os.system(f'cp "{weights_path}" "{local_weights}"')
+        shutil.copy(weights_path, local_weights)
         print('✅ Pesi DeepLab copiati localmente.')
     else:
-        print('❌ File dei pesi DeepLabv2 non trovato al path specificato.')
+        print(f'❌ File dei pesi DeepLabv2 non trovato: {weights_path}')
 else:
     print('✔ Pesi DeepLabv2 già presenti.')
 
@@ -63,8 +63,8 @@ else:
 # GTA5
 # ================================
 
-gta5_zip = '/content/drive/MyDrive/GTA5.zip'  # <-- Modifica questo path
-gta5_folder = './GTA5'
+gta5_zip = os.path.join(base_drive_path, 'GTA5.zip')
+gta5_folder = os.path.join(working_dir, 'GTA5')
 
 if not os.path.exists(gta5_folder):
     if os.path.exists(gta5_zip):
@@ -72,9 +72,9 @@ if not os.path.exists(gta5_folder):
         with ZipFile(gta5_zip, 'r') as zip_ref:
             members = zip_ref.namelist()
             for member in tqdm(members, desc="Estrazione GTA5", unit="file"):
-                zip_ref.extract(member, './')
+                zip_ref.extract(member, working_dir)
         print('✅ GTA5 pronto!')
     else:
-        print('❌ File GTA5 ZIP non trovato al path specificato.')
+        print(f'❌ File GTA5 ZIP non trovato: {gta5_zip}')
 else:
     print('✔ GTA5 già presente, nessuna estrazione necessaria.')

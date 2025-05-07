@@ -6,10 +6,28 @@ import time
 import pandas as pd
 import matplotlib.pyplot as plt
 from models.deeplabv2.deeplabv2 import get_deeplab_v2
+import os
+from models.bisenet.build_bisenet import get_bisenet
+
+# ================================
+# Ambiente (Colab, Kaggle, Locale)
+# ================================
+is_colab = 'COLAB_GPU' in os.environ
+is_kaggle = os.path.exists('/kaggle')
+
+if is_colab:
+    print("📍 Ambiente: Colab")
+    pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
+
+elif is_kaggle:
+    print("📍 Ambiente: Kaggle")
+    pretrain_model_path = '/kaggle/input/deeplab_resnet_pretrained_imagenet.pth'
+else:
+    print("📍 Ambiente: Locale")
+    pretrain_model_path = './deeplabv2_weights.pth'
 
 
-model = get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path='/content/MLDL_SS/deeplabv2_weights.pth')
-
+model_deeplab = get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path=pretrain_model_path)
 
 # =====================
 # Utils - mIoU
