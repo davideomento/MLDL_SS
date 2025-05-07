@@ -66,7 +66,7 @@ def benchmark_model(model: torch.nn.Module,
     with torch.no_grad():
         for _ in range(50):
             _ = model(dummy_input)
-        if device.startswith('cuda'):
+        if device.type == 'cuda':
             torch.cuda.synchronize()
 
     # Benchmark
