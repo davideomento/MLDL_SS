@@ -1,18 +1,18 @@
+import os
+import random
+import numpy as np
 import torch
+import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
-from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
-from torch import nn
-from datasets.cityscapes import CityScapes
-from metrics import benchmark_model, calculate_iou
-from models.bisenet.build_bisenet import get_bisenet
+from torchvision.transforms import functional as F
 from tqdm import tqdm
-import random
-import numpy as np
-import os
-import torchvision.models as models
+
+from datasets.cityscapes import CityScapes
+from models.deeplabv2.deeplabv2 import get_deeplab_v2
+from metrics import benchmark_model, calculate_iou
 
 # =====================
 # Set Seed for Reproducibility
@@ -28,31 +28,27 @@ def set_seed(seed=42):
 set_seed(42)
 
 # ================================
-# Ambiente (Colab, Kaggle, Locale)
+# Ambiente: Colab o Locale
 # ================================
 is_colab = 'COLAB_GPU' in os.environ
-is_kaggle = os.path.exists('/kaggle')
 
 if is_colab:
     print("📍 Ambiente: Colab")
     base_path = '/content/drive/MyDrive/Project_MLDL'
     data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-elif is_kaggle:
-    print("📍 Ambiente: Kaggle")
-    base_path = '/kaggle/working'
-    data_dir = '/kaggle/input/Cityscapes'
+    pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
 else:
     print("📍 Ambiente: Locale")
     base_path = './'
     data_dir = './Cityscapes/Cityspaces'
+    pretrain_model_path = './deeplabv2_weights.pth'
 
-save_dir = os.path.join(base_path, 'checkpoints')
+save_dir = os.path.join(base_path, 'checkpoints_tati')
 os.makedirs(save_dir, exist_ok=True)
 
 # =====================
 # Transforms
 # =====================
-
 class LabelTransform():
     def __init__(self, size=(512, 1024)):
         self.size = size
@@ -60,12 +56,12 @@ class LabelTransform():
     def __call__(self, mask):
         mask = F.resize(mask, self.size, interpolation=F.InterpolationMode.NEAREST)
         mask_tensor = F.pil_to_tensor(mask).squeeze(0).long()
-        return mask_tensor  # Assumes labelIds already (0–18, 255)
+        return mask_tensor
 
 def get_transforms():
     return {
         'train': transforms.Compose([
-            transforms.RandomResizedCrop((512, 1024), scale=(0.5, 1.0), ratio=(1.75, 2.25)),
+            transforms.RandomResizedCrop((512, 1024)),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -78,11 +74,11 @@ def get_transforms():
         ]),
     }
 
+transforms_dict = get_transforms()
+
 # =====================
 # Dataset & Dataloader
 # =====================
-transforms_dict = get_transforms()
-
 train_dataset = CityScapes(
     root_dir=data_dir,
     split='train',
@@ -97,27 +93,22 @@ val_dataset = CityScapes(
     target_transform=LabelTransform()
 )
 
-train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=6)
-val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=6)
+train_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=2)
 
 # =====================
 # Model, Loss, Optimizer
 # =====================
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-resnet18 = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
-resnet18_weights = resnet18.state_dict()
-
-model = get_bisenet(
+model = get_deeplab_v2(
     num_classes=19,
     pretrain=True,
-    pretrained_weights=resnet18_weights
+    pretrain_model_path=pretrain_model_path
 ).to(device)
 
 criterion = nn.CrossEntropyLoss(ignore_index=255)
-optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0001)
-lr_lambda = lambda epoch: (1 - epoch / 50) ** 0.9
-scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+optimizer = optim.SGD(model.optim_parameters(lr=0.001), momentum=0.9, weight_decay=0.0005)
 
 # =====================
 # Train / Validate
@@ -125,7 +116,6 @@ scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 def train(epoch, model, train_loader, criterion, optimizer):
     model.train()
     running_loss = 0.0
-
     loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}")
 
     for batch_idx, (inputs, targets) in loop:
@@ -143,7 +133,7 @@ def train(epoch, model, train_loader, criterion, optimizer):
         running_loss += loss.item()
         loop.set_postfix(loss=running_loss / (batch_idx + 1))
 
-def validate(model, val_loader, criterion, num_classes=19, epoch=0):
+def validate(model, val_loader, criterion, num_classes=19):
     model.eval()
     val_loss = 0
     correct = 0
@@ -158,8 +148,6 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
             if isinstance(outputs, (tuple, list)):
                 outputs = outputs[0]
 
-            assert outputs.shape[1] == num_classes, f"Expected {num_classes} classes, got {outputs.shape[1]}"
-
             loss = criterion(outputs, targets)
             val_loss += loss.item()
 
@@ -170,14 +158,6 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
             ious = calculate_iou(predicted, targets, num_classes, ignore_index=255)
             total_ious.append(ious)
 
-            # Save prediction debug image
-            if batch_idx == 0:
-                pred_vis = predicted[0].cpu().numpy()
-                plt.imshow(pred_vis, cmap='tab20')
-                plt.title("Predizione")
-                plt.axis('off')
-                plt.savefig(f"{save_dir}/pred_debug_epoch_{epoch}.png")
-
     val_loss /= len(val_loader)
     val_accuracy = 100. * correct / total
     iou_per_class = torch.tensor(total_ious).nanmean(dim=0)
@@ -187,11 +167,11 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
     return val_accuracy, miou
 
 # =====================
-# Main Training Function
+# Main Training Loop
 # =====================
 def main():
-    best_model_path = os.path.join(save_dir, 'best_model_bisenet.pth')
-    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet.pth')
+    best_model_path = os.path.join(save_dir, 'best_model_deeplab.pth')
+    checkpoint_path = os.path.join(save_dir, 'checkpoint_deeplab.pth')
 
     num_epochs = 50
     save_every = 1
@@ -202,14 +182,13 @@ def main():
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['model_state'])
         optimizer.load_state_dict(checkpoint['optimizer_state'])
-        scheduler.load_state_dict(checkpoint['scheduler_state'])
         best_miou = checkpoint['best_miou']
         start_epoch = checkpoint['epoch'] + 1
         print(f"✔ Ripreso da epoca {checkpoint['epoch']} con mIoU: {best_miou:.4f}")
 
     for epoch in range(start_epoch, num_epochs + 1):
         train(epoch, model, train_dataloader, criterion, optimizer)
-        val_accuracy, miou = validate(model, val_dataloader, criterion, epoch=epoch)
+        val_accuracy, miou = validate(model, val_dataloader, criterion)
 
         if miou > best_miou:
             best_miou = miou
@@ -221,13 +200,10 @@ def main():
                 'epoch': epoch,
                 'model_state': model.state_dict(),
                 'optimizer_state': optimizer.state_dict(),
-                'scheduler_state': scheduler.state_dict(),
                 'best_miou': best_miou
             }
             torch.save(checkpoint, checkpoint_path)
-            print(f"💾 Checkpoint salvato all’epoca {epoch}")
-
-        scheduler.step()
+            print(f"📂 Checkpoint salvato all'epoca {epoch}")
 
         if epoch % 10 == 0:
             model.eval()
@@ -239,6 +215,7 @@ def main():
     model.load_state_dict(torch.load(best_model_path))
     validate(model, val_dataloader, criterion)
 
+    # Plot
     plt.figure(figsize=(10, 4))
     plt.plot(df['iteration'], df['latency_s'], label='Latency (s)')
     plt.title('Latency per Iteration')
