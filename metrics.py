@@ -10,18 +10,14 @@ import os
 from models.bisenet.build_bisenet import get_bisenet
 
 # ================================
-# Ambiente (Colab, Kaggle, Locale)
+# Ambiente (Colab)
 # ================================
 is_colab = 'COLAB_GPU' in os.environ
-is_kaggle = os.path.exists('/kaggle')
 
 if is_colab:
     print("📍 Ambiente: Colab")
     pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
 
-elif is_kaggle:
-    print("📍 Ambiente: Kaggle")
-    pretrain_model_path = '/kaggle/input/deeplab_resnet_pretrained_imagenet.pth'
 else:
     print("📍 Ambiente: Locale")
     pretrain_model_path = './deeplabv2_weights.pth'
@@ -66,7 +62,7 @@ def benchmark_model(model: torch.nn.Module,
     with torch.no_grad():
         for _ in range(50):
             _ = model(dummy_input)
-        if device.startswith('cuda'):
+        if device.type == 'cuda':
             torch.cuda.synchronize()
 
     # Benchmark
@@ -75,7 +71,7 @@ def benchmark_model(model: torch.nn.Module,
         for i in range(iterations):
             start = time.time()
             _ = model(dummy_input)
-            if device.startswith('cuda'):
+            if device.type == 'cuda':
                 torch.cuda.synchronize()
             end = time.time()
 
