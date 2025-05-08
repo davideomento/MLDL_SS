@@ -30,17 +30,19 @@ class CityScapes(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        img = Image.open(self.image_paths[idx]).convert("RGB")
-        label = Image.open(self.label_paths[idx])
+        # Usa self.image_paths[idx] e self.label_paths[idx]
+        img_path = self.image_paths[idx]
+        mask_path = self.label_paths[idx]
 
-        if self.target_transform:
-            label = self.target_transform(label)
+        image = Image.open(img_path).convert("RGB")
+        mask = Image.open(mask_path)
 
         if self.transform:
-            img = self.transform(img)
+            transformed = self.transform(image=np.array(image), mask=np.array(mask))
+            image = transformed["image"]
+            mask = torch.tensor(transformed["mask"]).long()
 
+        if self.target_transform:
+            mask = self.target_transform(mask)
 
-        return img, label
-
-
-
+        return image, mask
