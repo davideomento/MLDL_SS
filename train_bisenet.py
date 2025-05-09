@@ -42,18 +42,12 @@ set_seed(42)
 # ================================
 
 is_colab = 'COLAB_GPU' in os.environ
-is_kaggle = os.path.exists('/kaggle')
 
 if is_colab:
     print("📍 Ambiente: Colab")
     base_path = '/content/drive/MyDrive'
     data_dir = '/content/Cityscapes/Cityspaces'
     pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
-elif is_kaggle:
-    print("📍 Ambiente: Kaggle")
-    base_path = '/kaggle/working'
-    data_dir = '/kaggle/input/Cityscapes'
-    pretrain_model_path = '/kaggle/input/deeplab_resnet_pretrained_imagenet.pth'
 else:
     print("📍 Ambiente: Locale")
     base_path = './'
@@ -207,10 +201,22 @@ def validate(model, val_loader, criterion, num_classes=19):
 
             if batch_idx == 0:
                 pred_vis = predicted[0].cpu().numpy()
-                plt.imshow(pred_vis, cmap='tab20')
-                plt.title("Predizione")
-                plt.axis('off')
-                plt.savefig(f"{save_dir}/pred_debug_epoch_{epoch}.png")
+                gt_vis = targets[0].cpu().numpy()
+
+                fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+                
+                axes[0].imshow(gt_vis, cmap='tab20')
+                axes[0].set_title("Ground Truth")
+                axes[0].axis('off')
+                
+                axes[1].imshow(pred_vis, cmap='tab20')
+                axes[1].set_title("Predizione")
+                axes[1].axis('off')
+                
+                plt.tight_layout()
+                plt.savefig(f"{save_dir}/gt_vs_pred_epoch_{epoch}.png")
+                plt.close()
+
 
     val_loss /= len(val_loader)
     val_accuracy = 100. * correct / total
