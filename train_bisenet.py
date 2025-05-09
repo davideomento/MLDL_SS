@@ -46,7 +46,7 @@ is_colab = 'COLAB_GPU' in os.environ
 if is_colab:
     print("📍 Ambiente: Colab")
     base_path = '/content/drive/MyDrive'
-    data_dir = '/content/Cityscapes/Cityspaces'
+    data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
     pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
 else:
     print("📍 Ambiente: Locale")
