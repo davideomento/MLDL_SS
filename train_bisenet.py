@@ -54,7 +54,7 @@ else:
     data_dir = './Cityscapes/Cityspaces'
     pretrain_model_path = './deeplabv2_weights.pth'
 
-save_dir = os.path.join(base_path, 'checkpoints')
+save_dir = os.path.join(base_path, 'checkpoints_tati')
 os.makedirs(save_dir, exist_ok=True)
 
 # =====================
