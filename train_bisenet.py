@@ -167,12 +167,14 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
         running_loss += loss.item()
         loop.set_postfix(loss=running_loss / (batch_idx + 1))
 
-def validate(model, val_loader, criterion, num_classes=19):
+def validate(model, val_loader, criterion, epoch=None, num_classes=19, save_dir="./results"):
     model.eval()
     val_loss = 0
     correct = 0
     total = 0
     total_ious = []
+
+    os.makedirs(save_dir, exist_ok=True)
 
     with torch.no_grad():
         loop = tqdm(enumerate(val_loader), total=len(val_loader), desc="Validating")
@@ -199,6 +201,7 @@ def validate(model, val_loader, criterion, num_classes=19):
             ious = calculate_iou(predicted, targets, num_classes, ignore_index=255)
             total_ious.append(ious)
 
+            # Salva la visualizzazione solo del primo batch
             if batch_idx == 0:
                 pred_vis = predicted[0].cpu().numpy()
                 gt_vis = targets[0].cpu().numpy()
@@ -210,13 +213,15 @@ def validate(model, val_loader, criterion, num_classes=19):
                 axes[0].axis('off')
                 
                 axes[1].imshow(pred_vis, cmap='tab20')
-                axes[1].set_title("Predizione")
+                axes[1].set_title("Prediction")
                 axes[1].axis('off')
                 
                 plt.tight_layout()
-                plt.savefig(f"{save_dir}/gt_vs_pred_epoch_{epoch}.png")
+                if epoch is not None:
+                    plt.savefig(f"{save_dir}/gt_vs_pred_epoch_{epoch}.png")
+                else:
+                    plt.savefig(f"{save_dir}/gt_vs_pred.png")
                 plt.close()
-
 
     val_loss /= len(val_loader)
     val_accuracy = 100. * correct / total
