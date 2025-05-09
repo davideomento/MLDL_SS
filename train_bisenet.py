@@ -15,17 +15,10 @@ from tqdm import tqdm
 
 from datasets.cityscapes import CityScapes
 from models.bisenet.build_bisenet import get_bisenet
-from tqdm import tqdm
-import random
-import numpy as np
-import os 
-import torchvision.models as models
-
 from metrics import benchmark_model, calculate_iou
 
-
-resnet18 = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
-resnet18_weights = resnet18.state_dict()
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
 # =====================
 # Set Seed
@@ -40,24 +33,13 @@ def set_seed(seed=42):
 
 set_seed(42)
 
-# ================================
-# Ambiente (Colab, Kaggle, Locale)
-# ================================
-
-is_colab = 'COLAB_GPU' in os.environ
-
-if is_colab:
-    print("📍 Ambiente: Colab")
-    base_path = '/content/drive/MyDrive/Project_MLDL_SS'
-    data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-    pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
-else:
-    print("📍 Ambiente: Locale")
-    base_path = './'
-    data_dir = './Cityscapes/Cityspaces'
-    pretrain_model_path = './deeplabv2_weights.pth'
-
-save_dir = os.path.join(base_path, 'checkpoints_tati')
+# =====================
+# Percorsi
+# =====================
+print("📍 Ambiente: Colab (Drive)")
+base_path = '/content/drive/MyDrive/Project_MLDL'
+data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
+save_dir = os.path.join(base_path, 'checkpoints_ema')
 os.makedirs(save_dir, exist_ok=True)
 
 # =====================
@@ -68,28 +50,31 @@ class LabelTransform():
         self.size = size
 
     def __call__(self, mask):
-        # Resize
+        # Resize la maschera
         mask = F.resize(mask, self.size, interpolation=F.InterpolationMode.NEAREST)
-        # Convert to tensor and long
-        mask_tensor = F.pil_to_tensor(mask).squeeze(0).long()
-        return mask_tensor
+        # Restituisce un tensore (non serve più F.pil_to_tensor)
+        return torch.tensor(np.array(mask), dtype=torch.long)
 
 
 def get_transforms():
-    return {
-        'train': transforms.Compose([
-            transforms.RandomResizedCrop((512, 1024)),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ]),
-        'val': transforms.Compose([
-            transforms.Resize((512, 1024)),
-            transforms.CenterCrop((512, 1024)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ]),
-    }
+    train_transform = A.Compose([
+        A.RandomResizedCrop(512, 1024, scale=(0.5, 1.0), ratio=(1.75, 2.25)),
+        A.HorizontalFlip(p=0.5),
+        A.RandomBrightnessContrast(p=0.2),
+        A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.1, rotate_limit=10, p=0.3),
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ToTensorV2()
+    ])
+
+    val_transform = A.Compose([
+        A.Resize(512, 1024),
+        A.CenterCrop(512, 1024),
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ToTensorV2()
+    ])
+
+    return {'train': train_transform, 'val': val_transform}
+
 
 # =====================
 # Dataset & Dataloader
@@ -127,8 +112,14 @@ model = get_bisenet(
     pretrained_weights=resnet18_weights
 ).to(device)
 
-criterion = nn.CrossEntropyLoss(ignore_index=255)
-optimizer = optim.SGD(model.parameters(), lr=0.025, momentum=0.9, weight_decay=0.0001)
+
+class_weights = torch.tensor([
+    2.6, 6.9, 3.5, 3.6, 3.6, 3.8, 3.4, 3.5, 5.1, 4.7,
+    6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
+], dtype=torch.float).to(device)
+
+criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
+optimizer = optim.SGD(model.parameters(), lr=0.025, momentum=0.9, weight_decay=1e-4)
 
 # =====================
 # Poly LR Scheduler (Per Iter)
@@ -159,25 +150,29 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
         optimizer.zero_grad()
         outputs = model(inputs)
 
-        # DeepLabV2 returns a tuple (output, aux), use outputs[0] if that's the case
-        if isinstance(outputs, (tuple, list)):
-            outputs = outputs[0]
-   
-        loss = criterion(outputs, targets)
+        if isinstance(outputs, (tuple, list)) and len(outputs) == 3:
+            main_out, aux1_out, aux2_out = outputs
+            loss = (
+                criterion(main_out, targets)
+                + 0.4 * criterion(aux1_out, targets)
+                + 0.4 * criterion(aux2_out, targets)
+            )
+        else:
+            loss = criterion(outputs, targets)
+
         loss.backward()
         optimizer.step()
 
         running_loss += loss.item()
         loop.set_postfix(loss=running_loss / (batch_idx + 1))
+      
 
-def validate(model, val_loader, criterion, epoch=None, num_classes=19, save_dir="./results"):
+def validate(model, val_loader, criterion, num_classes=19, epoch=0):
     model.eval()
     val_loss = 0
     correct = 0
     total = 0
     total_ious = []
-
-    os.makedirs(save_dir, exist_ok=True)
 
     with torch.no_grad():
         loop = tqdm(enumerate(val_loader), total=len(val_loader), desc="Validating")
