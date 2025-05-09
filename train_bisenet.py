@@ -203,24 +203,35 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
 
             # Salva la visualizzazione solo del primo batch
             if batch_idx == 0:
-                pred_vis = predicted[0].cpu().numpy()
-                gt_vis = targets[0].cpu().numpy()
+                # Estrai immagine, gt e pred del primo sample
+                img_tensor = inputs[0].cpu()
+                gt_vis    = targets[0].cpu().numpy()
+                pred_vis  = predicted[0].cpu().numpy()
 
-                fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+                # Desnormalize l'immagine (ricorda gli stessi mean/std del transform)
+                mean = torch.tensor([0.485, 0.456, 0.406]).view(3,1,1)
+                std  = torch.tensor([0.229, 0.224, 0.225]).view(3,1,1)
+                img_dn = img_tensor * std + mean      # [3,H,W]
+                img_np = img_dn.permute(1,2,0).numpy() # [H,W,3]
+
+                # Plot in 1x3
+                fig, axes = plt.subplots(1, 3, figsize=(18, 6))
                 
-                axes[0].imshow(gt_vis, cmap='tab20')
-                axes[0].set_title("Ground Truth")
+                axes[0].imshow(img_np)
+                axes[0].set_title("Image")
                 axes[0].axis('off')
                 
-                axes[1].imshow(pred_vis, cmap='tab20')
-                axes[1].set_title("Prediction")
+                axes[1].imshow(gt_vis, cmap='tab20')
+                axes[1].set_title("Ground Truth")
                 axes[1].axis('off')
                 
+                axes[2].imshow(pred_vis, cmap='tab20')
+                axes[2].set_title("Prediction")
+                axes[2].axis('off')
+                
                 plt.tight_layout()
-                if epoch is not None:
-                    plt.savefig(f"{save_dir}/gt_vs_pred_epoch_{epoch}.png")
-                else:
-                    plt.savefig(f"{save_dir}/gt_vs_pred.png")
+                fname = f"{save_dir}/img_gt_pred_epoch_{epoch}.png" if epoch else f"{save_dir}/img_gt_pred.png"
+                plt.savefig(fname)
                 plt.close()
 
     val_loss /= len(val_loader)
