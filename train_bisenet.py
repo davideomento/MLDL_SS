@@ -39,7 +39,7 @@ set_seed(42)
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-save_dir = os.path.join(base_path, 'checkpoints_ema')
+save_dir = os.path.join(base_path, 'checkpoints_tati')
 os.makedirs(save_dir, exist_ok=True)
 
 # =====================
