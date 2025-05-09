@@ -4,30 +4,14 @@ import torch
 from torch.utils.data import Dataset
 import numpy as np
 
-class CityScapes(Dataset):
-    def __init__(self, root_dir, split='train', transform=None, target_transform=None):
-        self.root_dir = root_dir
-        self.split = split
+class CityScapes(torch.utils.data.Dataset):
+    def __init__(self, image_dir, mask_dir, transform=None):
+        self.image_dir = image_dir
+        self.mask_dir = mask_dir
         self.transform = transform
-        self.target_transform = target_transform
+        self.images = sorted([os.path.join(image_dir, f) for f in os.listdir(image_dir) if f.endswith('.png')])  # Assicurati che questo percorso sia corretto
+        self.masks = sorted([os.path.join(mask_dir, f) for f in os.listdir(mask_dir) if f.endswith('.png')])
 
-        self.image_dir = os.path.join(root_dir, 'images', split)
-        self.label_dir = os.path.join(root_dir, 'gtFine', split)
-
-        self.image_paths = []
-        self.label_paths = []
-
-        for city in os.listdir(self.image_dir):
-            city_path = os.path.join(self.image_dir, city)
-            for file_name in os.listdir(city_path):
-                if file_name.endswith('_leftImg8bit.png'):
-                    self.image_paths.append(os.path.join(city_path, file_name))
-                    label_file = file_name.replace('_leftImg8bit.png', '_gtFine_labelTrainIds.png')
-                    self.label_paths.append(os.path.join(self.label_dir, city, label_file))
-
-
-    def __len__(self):
-        return len(self.image_paths)
     def __getitem__(self, index):
         image = Image.open(self.images[index]).convert("RGB")
         mask = Image.open(self.masks[index])
@@ -39,6 +23,5 @@ class CityScapes(Dataset):
 
         return image, mask.long()
 
-
-
-
+    def __len__(self):
+        return len(self.images)
