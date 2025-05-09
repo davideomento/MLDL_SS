@@ -30,18 +30,20 @@ class CityScapes(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        image_path = self.images[idx]
-        mask_path = self.masks[idx]
+        img_path = self.image_paths[idx]
+        mask_path = self.label_paths[idx]
 
-        image = Image.open(image_path).convert('RGB')
+        image = Image.open(img_path).convert("RGB")
         mask = Image.open(mask_path)
 
         if self.transform:
             image = self.transform(image)
+
         if self.target_transform:
             mask = self.target_transform(mask)
 
         return image, mask
+
 
 
 
