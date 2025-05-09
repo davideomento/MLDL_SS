@@ -21,6 +21,9 @@ import numpy as np
 import os 
 import torchvision.models as models
 
+from metrics import benchmark_model, calculate_iou
+
+
 resnet18 = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
 resnet18_weights = resnet18.state_dict()
 
@@ -45,7 +48,7 @@ is_colab = 'COLAB_GPU' in os.environ
 
 if is_colab:
     print("📍 Ambiente: Colab")
-    base_path = '/content/drive/MyDrive'
+    base_path = '/content/drive/MyDrive/Project_MLDL_SS'
     data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
     pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
 else:
