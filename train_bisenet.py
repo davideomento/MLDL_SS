@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 import torchvision.models as models
 from tqdm import tqdm
 
+from monai.losses import DiceLoss
 from datasets.cityscapes import CityScapes
 from models.bisenet.build_bisenet import get_bisenet
 from metrics import benchmark_model, calculate_iou
@@ -121,7 +122,8 @@ class_weights = torch.tensor([
     6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
 ], dtype=torch.float).to(device)
 
-criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255) + nn.DiceLoss(weight=class_weights, ignore_index=255)  # richiede normalizzazione della output (es. softmax)
+criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
+dice_loss = DiceLoss(to_onehot_y=True, softmax=True)
 optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-2)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=50)
 
@@ -163,8 +165,7 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
                 + 0.4 * criterion(aux2_out, targets)
             )
         else:
-            loss = criterion(outputs, targets)
-
+            total_loss = criterion(outputs, targets) + dice_loss(outputs, targets)
         loss.backward()
         optimizer.step()
 
