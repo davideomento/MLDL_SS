@@ -34,27 +34,17 @@ def set_seed(seed=42):
 set_seed(42)
 
 # =====================
-# Percorsi
-# =====================
-print("📍 Ambiente: Colab (Drive)")
-base_path = '/content/drive/MyDrive/Project_MLDL'
-data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-save_dir = os.path.join(base_path, 'checkpoints_tati')
-os.makedirs(save_dir, exist_ok=True)
-
-# =====================
-# Transforms
+# Label Transform
 # =====================
 class LabelTransform():
     def __init__(self, size=(512, 1024)):
         self.size = size
 
     def __call__(self, mask):
-        # Resize la maschera
-        mask = F.resize(mask, self.size, interpolation=F.InterpolationMode.NEAREST)
-        # Restituisce un tensore (non serve più F.pil_to_tensor)
-        return torch.tensor(np.array(mask), dtype=torch.long)
+        mask = F.resize(mask, self.size, interpolation=Image.NEAREST)
+        return torch.as_tensor(mask, dtype=torch.long)          
 
+###############
 
 def get_transforms():
     train_transform = A.Compose([
@@ -82,19 +72,20 @@ def get_transforms():
 # Dataset & Dataloader
 # =====================
 transforms_dict = get_transforms()
+label_transform = LabelTransform()
 
 train_dataset = CityScapes(
     root_dir=data_dir,
     split='train',
     transform=transforms_dict['train'],
-    target_transform=LabelTransform()
+    target_transform=label_transform
 )
 
 val_dataset = CityScapes(
     root_dir=data_dir,
     split='val',
     transform=transforms_dict['val'],
-    target_transform=LabelTransform()
+    target_transform=label_transform
 )
 
 train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=2)
@@ -167,7 +158,25 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
 
         running_loss += loss.item()
         loop.set_postfix(loss=running_loss / (batch_idx + 1))
-      
+
+ 
+CITYSCAPES_COLORS = [
+    (128, 64,128), (244, 35,232), ( 70, 70, 70), (102,102,156),
+    (190,153,153), (153,153,153), (250,170, 30), (220,220,  0),
+    (107,142, 35), (152,251,152), ( 70,130,180), (220, 20, 60),
+    (255,  0,  0), (  0,  0,142), (  0,  0, 70), (  0, 60,100),
+    (  0, 80,100), (  0,  0,230), (119, 11, 32)
+]
+     
+def decode_segmap(mask):
+    """Converte una mappa con classi 0-18 in immagine RGB"""
+    h, w = mask.shape
+    color_mask = np.zeros((h, w, 3), dtype=np.uint8)
+    for label_id, color in enumerate(CITYSCAPES_COLORS):
+        color_mask[mask == label_id] = color
+    return color_mask
+
+
 
 def validate(model, val_loader, criterion, num_classes=19, epoch=0):
     model.eval()
@@ -203,36 +212,40 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
 
             # Salva la visualizzazione solo del primo batch
             if batch_idx == 0:
-                # Estrai immagine, gt e pred del primo sample
                 img_tensor = inputs[0].cpu()
-                gt_vis    = targets[0].cpu().numpy()
-                pred_vis  = predicted[0].cpu().numpy()
+                gt_vis = targets[0].cpu().numpy()
+                pred_vis = predicted[0].cpu().numpy()
 
-                # Desnormalize l'immagine (ricorda gli stessi mean/std del transform)
                 mean = torch.tensor([0.485, 0.456, 0.406]).view(3,1,1)
-                std  = torch.tensor([0.229, 0.224, 0.225]).view(3,1,1)
-                img_dn = img_tensor * std + mean      # [3,H,W]
-                img_np = img_dn.permute(1,2,0).numpy() # [H,W,3]
+                std = torch.tensor([0.229, 0.224, 0.225]).view(3,1,1)
+                img_dn = img_tensor * std + mean
+                img_np = img_dn.permute(1,2,0).numpy()
 
-                # Plot in 1x3
+                # ===> Carica immagine _color dal filesystem
+                # 1. Prendi il percorso della label
+                label_path = val_dataset.label_paths[batch_idx]
+                # 2. Costruisci path della versione _color
+                color_path = label_path.replace('_gtFine_labelTrainIds.png', '_gtFine_color.png')
+                color_img = Image.open(color_path)
+
                 fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-                
                 axes[0].imshow(img_np)
-                axes[0].set_title("Image")
+                axes[0].set_title("Input Image")
                 axes[0].axis('off')
-                
-                axes[1].imshow(gt_vis, cmap='tab20')
-                axes[1].set_title("Ground Truth")
+
+                axes[1].imshow(decode_segmap(gt_vis))  # usa colormap ufficiale
+                axes[1].set_title("GT (Colored)")
                 axes[1].axis('off')
-                
-                axes[2].imshow(pred_vis, cmap='tab20')
+
+                axes[2].imshow(decode_segmap(pred_vis))
                 axes[2].set_title("Prediction")
                 axes[2].axis('off')
-                
+
                 plt.tight_layout()
-                fname = f"{save_dir}/img_gt_pred_epoch_{epoch}.png" if epoch else f"{save_dir}/img_gt_pred.png"
+                fname = f"{save_dir}/img_gt_pred_gtcolor_epoch_{epoch}.png"
                 plt.savefig(fname)
                 plt.close()
+
 
     val_loss /= len(val_loader)
     val_accuracy = 100. * correct / total
