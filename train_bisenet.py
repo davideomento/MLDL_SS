@@ -121,8 +121,9 @@ class_weights = torch.tensor([
     6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
 ], dtype=torch.float).to(device)
 
-criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
-optimizer = optim.SGD(model.parameters(), lr=0.025, momentum=0.9, weight_decay=1e-4)
+criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255) + nn.DiceLoss(weight=class_weights, ignore_index=255)  # richiede normalizzazione della output (es. softmax)
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-2)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=50)
 
 # =====================
 # Poly LR Scheduler (Per Iter)
@@ -148,7 +149,8 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
         inputs, targets = inputs.to(device), targets.to(device)
 
         iter_count = global_iter + batch_idx
-        poly_lr_scheduler(optimizer, init_lr, iter_count, max_iter)
+        scheduler.step()
+        #poly_lr_scheduler(optimizer, init_lr, iter_count, max_iter)
 
         optimizer.zero_grad()
         outputs = model(inputs)
