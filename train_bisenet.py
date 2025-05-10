@@ -197,6 +197,8 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
     correct = 0
     total = 0
     total_ious = []
+    loss_values = []
+    accuracy_values = []
 
     with torch.no_grad():
         loop = tqdm(enumerate(val_loader), total=len(val_loader), desc="Validating")
@@ -223,54 +225,30 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
             ious = calculate_iou(predicted, targets, num_classes, ignore_index=255)
             total_ious.append(ious)
 
-            # Salva la visualizzazione solo del primo batch
-            if batch_idx == 0:
-                img_tensor = inputs[0].cpu()
-                gt_vis = targets[0].cpu().numpy()
-                pred_vis = predicted[0].cpu().numpy()
+            # Salvataggio della loss e accuratezza per epoca
+            loss_values.append(loss.item())
+            accuracy_values.append((predicted == targets).sum().item() / targets.numel())
 
-                mean = torch.tensor([0.485, 0.456, 0.406]).view(3,1,1)
-                std = torch.tensor([0.229, 0.224, 0.225]).view(3,1,1)
-                img_dn = img_tensor * std + mean
-                img_np = img_dn.permute(1,2,0).numpy()
-
-                # ===> Carica immagine _color dal filesystem
-                # 1. Prendi il percorso della label
-                label_path = val_dataset.label_paths[batch_idx]
-                # 2. Costruisci path della versione _color
-                color_path = label_path.replace('_gtFine_labelTrainIds.png', '_gtFine_color.png')
-                color_img = Image.open(color_path)
-
-                fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-                axes[0].imshow(img_np)
-                axes[0].set_title("Input Image")
-                axes[0].axis('off')
-
-                axes[1].imshow(decode_segmap(gt_vis))  # usa colormap ufficiale
-                axes[1].set_title("GT (Colored)")
-                axes[1].axis('off')
-
-                axes[2].imshow(decode_segmap(pred_vis))
-                axes[2].set_title("Prediction")
-                axes[2].axis('off')
-
-                plt.tight_layout()
-                fname = f"{save_dir}/img_gt_pred_gtcolor_epoch_{epoch}.png"
-                plt.savefig(fname)
-                plt.close()
-
-
+    # Calcolo delle metriche per epoca
     val_loss /= len(val_loader)
     val_accuracy = 100. * correct / total
     iou_per_class = torch.tensor(total_ious).nanmean(dim=0)
     miou = iou_per_class.nanmean().item()
 
     print(f'Validation Loss: {val_loss:.6f} | Acc: {val_accuracy:.2f}% | mIoU: {miou:.4f}')
-    return val_accuracy, miou
+    
+    return {
+        'loss': val_loss,
+        'accuracy': val_accuracy,
+        'miou': miou,
+        'iou_per_class': iou_per_class,
+        'loss_values': loss_values,
+        'accuracy_values': accuracy_values
+    }
 
-# =====================
-# Main Loop
-# =====================
+
+
+# Modificare la funzione main per raccogliere e salvare i dati
 def main():
     best_model_path = os.path.join(save_dir, 'best_model_bisenet.pth')
     checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet.pth')
@@ -279,6 +257,16 @@ def main():
     best_miou = 0
     start_epoch = 1
     init_lr = 0.025
+
+    # Dati per il salvataggio delle metriche
+    metrics_data = {
+        'epoch': [],
+        'train_loss': [],
+        'val_loss': [],
+        'val_accuracy': [],
+        'miou': [],
+        'iou_per_class': []
+    }
 
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
@@ -289,13 +277,25 @@ def main():
         print(f"✔ Ripreso da epoca {checkpoint['epoch']} con mIoU: {best_miou:.4f}")
 
     for epoch in range(start_epoch, num_epochs + 1):
-        train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
-        val_accuracy, miou = validate(model, val_dataloader, criterion, epoch=epoch)
+        # Training
+        train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
+        
+        # Validation and Metrics
+        val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
+        
+        # Registriamo i dati per il salvataggio
+        metrics_data['epoch'].append(epoch)
+        metrics_data['train_loss'].append(train_loss)
+        metrics_data['val_loss'].append(val_metrics['loss'])
+        metrics_data['val_accuracy'].append(val_metrics['accuracy'])
+        metrics_data['miou'].append(val_metrics['miou'])
+        metrics_data['iou_per_class'].append(val_metrics['iou_per_class'].cpu().numpy())
 
-        if miou > best_miou:
-            best_miou = miou
+        # Salvataggio del modello migliore
+        if val_metrics['miou'] > best_miou:
+            best_miou = val_metrics['miou']
             torch.save(model.state_dict(), best_model_path)
-            print(f"✅ Best model salvato con mIoU: {miou:.4f}")
+            print(f"✅ Best model salvato con mIoU: {val_metrics['miou']:.4f}")
 
         if epoch % save_every == 0:
             checkpoint = {
@@ -306,38 +306,64 @@ def main():
             }
             torch.save(checkpoint, checkpoint_path)
             print(f"💾 Checkpoint salvato all’epoca {epoch}")
-
-        if epoch % 10 == 0:
-            model.eval()
-            df = benchmark_model(model, image_size=(3, 512, 1024), iterations=100, device=device)
-            csv_path = os.path.join(save_dir, f'benchmark_epoch_{epoch}.csv')
+            
+            # Salvataggio delle metriche su CSV
+            df = pd.DataFrame(metrics_data)
+            csv_path = os.path.join(save_dir, f'metrics_epoch_{epoch}.csv')
             df.to_csv(csv_path, index=False)
-            print(f"📊 Benchmark salvato: {csv_path}")
+            print(f"📊 Metriche salvate in {csv_path}")
 
+    # Al termine dell'addestramento, carica il miglior modello e valida di nuovo
     model.load_state_dict(torch.load(best_model_path))
     validate(model, val_dataloader, criterion)
 
-    # Plot di benchmark (se presente)
-    if 'df' in locals():
-        plt.figure(figsize=(10, 4))
-        plt.plot(df['iteration'], df['latency_s'], label='Latency (s)')
-        plt.title('Latency per Iteration')
-        plt.xlabel('Iteration')
-        plt.ylabel('Latency (s)')
-        plt.grid(True)
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
+    # Esegui il grafico delle metriche salvate
+    plot_metrics(metrics_data)
 
-        plt.figure(figsize=(10, 4))
-        plt.plot(df['iteration'], df['fps'], label='FPS', color='green')
-        plt.title('FPS per Iteration')
-        plt.xlabel('Iteration')
-        plt.ylabel('FPS')
-        plt.grid(True)
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
+def plot_metrics(metrics_data):
+    # Funzione per plottare le metriche nel tempo
+    df = pd.DataFrame(metrics_data)
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(df['epoch'], df['val_loss'], label='Validation Loss')
+    plt.plot(df['epoch'], df['train_loss'], label='Train Loss', linestyle='--')
+    plt.title('Loss over Epochs')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(df['epoch'], df['val_accuracy'], label='Validation Accuracy')
+    plt.title('Accuracy over Epochs')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy (%)')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(df['epoch'], df['miou'], label='mIoU')
+    plt.title('Mean IoU over Epochs')
+    plt.xlabel('Epoch')
+    plt.ylabel('mIoU')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    # Plot della IoU per classe (opzionale)
+    iou_per_class = np.array(df['iou_per_class'].tolist())
+    for i in range(iou_per_class.shape[1]):
+        plt.plot(df['epoch'], iou_per_class[:, i], label=f'Class {i}')
+    plt.title('IoU per Class over Epochs')
+    plt.xlabel('Epoch')
+    plt.ylabel('IoU')
+    plt.legend(loc='upper left')
+    plt.grid(True)
+    plt.show()
+
+
 
 if __name__ == "__main__":
     main()
