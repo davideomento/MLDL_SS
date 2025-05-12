@@ -115,14 +115,10 @@ val_dataloader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_worke
 # =====================
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Carica pesi ResNet18 pre-addestrati
-resnet18 = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
-resnet18_weights = resnet18.state_dict()
 
 # Costruisci context path e BiSeNet in modo modulare
 context_path = build_contextpath(
     backbone='resnet18',
-    pretrained_weights=resnet18_weights
 )
 
 model = BiSeNet(num_classes=19, context_path='resnet18').cuda()
