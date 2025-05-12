@@ -59,8 +59,11 @@ class LabelTransform():
 
 def get_transforms():
     train_transform = A.Compose([
-        A.RandomScale(scale_limit=(0.75, 2.0), p=1.0),  # random scale
-        A.PadIfNeeded(min_height=512, min_width=1024, border_mode=0),  # pad se necessario
+        A.OneOf([
+            A.Resize(height=int(512 * s), width=int(1024 * s))
+            for s in [0.75, 1.0, 1.5, 1.75, 2.0]
+        ], p=1.0),
+        A.PadIfNeeded(min_height=512, min_width=1024, border_mode=0),  # padding se resize più piccola
         A.RandomCrop(height=512, width=1024),  # crop fisso
         A.HorizontalFlip(p=0.5),
         A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
@@ -77,6 +80,7 @@ def get_transforms():
         'train': train_transform,
         'val': val_transform
     }
+
 
 
 
