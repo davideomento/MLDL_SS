@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 #from monai.losses import DiceLoss
 from datasets.cityscapes import CityScapes
-from models.bisenet.build_bisenet import get_bisenet
+from models.bisenet.build_bisenet import BiSeNet
 from metrics import benchmark_model, calculate_iou
 
 import albumentations as A
@@ -114,14 +114,18 @@ val_dataloader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_worke
 # =====================
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# Carica pesi ResNet18 pre-addestrati
 resnet18 = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
 resnet18_weights = resnet18.state_dict()
 
-model = get_bisenet(
-    num_classes=19,
-    pretrain=True,
+# Costruisci context path e BiSeNet in modo modulare
+context_path = build_contextpath(
+    backbone='resnet18',
     pretrained_weights=resnet18_weights
-).to(device)
+)
+
+model = BiSeNet(num_classes=19, context_path='resnet18').cuda()
+
 
 
 class_weights = torch.tensor([
