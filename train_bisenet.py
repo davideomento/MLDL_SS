@@ -17,9 +17,6 @@ from datasets.cityscapes import CityScapes
 from models.bisenet.build_bisenet import get_bisenet
 from metrics import benchmark_model, calculate_iou
 
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
-
 # =====================
 # Set Seed
 # =====================
