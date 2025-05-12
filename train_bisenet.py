@@ -173,6 +173,7 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
 
     return running_loss / len(train_loader)
 
+
  
 CITYSCAPES_COLORS = [
     (128, 64,128), (244, 35,232), ( 70, 70, 70), (102,102,156),
