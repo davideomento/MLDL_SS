@@ -118,7 +118,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Costruisci context path e BiSeNet in modo modulare
 context_path = build_contextpath(
-    backbone='resnet18',
+    name='resnet18',
 )
 
 model = BiSeNet(num_classes=19, context_path='resnet18').cuda()
