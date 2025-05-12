@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 import torchvision.models as models
 from tqdm import tqdm
 
-from monai.losses import DiceLoss
+#from monai.losses import DiceLoss
 from datasets.cityscapes import CityScapes
 from models.bisenet.build_bisenet import get_bisenet
 from metrics import benchmark_model, calculate_iou
@@ -40,7 +40,7 @@ set_seed(42)
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-save_dir = os.path.join(base_path, 'checkpoints_tati2')
+save_dir = os.path.join(base_path, 'checkpoints_tati3')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -68,7 +68,8 @@ def get_transforms():
 
     val_transform = A.Compose([
         A.Resize(512, 1024),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        A.Normalize(mean=(0.485, 0.456, 0.406), st
+        d=(0.229, 0.224, 0.225)),
         ToTensorV2()
     ])
 
@@ -123,10 +124,8 @@ class_weights = torch.tensor([
 ], dtype=torch.float).to(device)
 
 criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
-dice_loss = DiceLoss(to_onehot_y=True, softmax=True)
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-2)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=50)
-
+#dice_loss = DiceLoss(to_onehot_y=True, softmax=True)
+optimizer = torch.optim.SGD(model.parameters(), lr=2.5e-2, weight_decay=1e-4, momentum=0.9)
 # =====================
 # Poly LR Scheduler (Per Iter)
 # =====================
@@ -151,8 +150,7 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
         inputs, targets = inputs.to(device), targets.to(device)
 
         iter_count = global_iter + batch_idx
-        scheduler.step()
-        #poly_lr_scheduler(optimizer, init_lr, iter_count, max_iter)
+        poly_lr_scheduler(optimizer, init_lr, iter_count, max_iter)  # <-- usa PolyLR per iterazione
 
         optimizer.zero_grad()
         outputs = model(inputs)
@@ -165,12 +163,15 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
                 + 0.4 * criterion(aux2_out, targets)
             )
         else:
-            total_loss = criterion(outputs, targets) + dice_loss(outputs, targets)
+            loss = criterion(outputs, targets)
+
         loss.backward()
         optimizer.step()
 
         running_loss += loss.item()
         loop.set_postfix(loss=running_loss / (batch_idx + 1))
+
+    return running_loss / len(train_loader)
 
  
 CITYSCAPES_COLORS = [
@@ -228,6 +229,42 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
             # Salvataggio della loss e accuratezza per epoca
             loss_values.append(loss.item())
             accuracy_values.append((predicted == targets).sum().item() / targets.numel())
+
+            if batch_idx == 0:
+                img_tensor = inputs[0].cpu()
+                gt_vis = targets[0].cpu().numpy()
+                pred_vis = predicted[0].cpu().numpy()
+
+                mean = torch.tensor([0.485, 0.456, 0.406]).view(3,1,1)
+                std = torch.tensor([0.229, 0.224, 0.225]).view(3,1,1)
+                img_dn = img_tensor * std + mean
+                img_np = img_dn.permute(1,2,0).numpy()
+
+                # ===> Carica immagine _color dal filesystem
+                # 1. Prendi il percorso della label
+                label_path = val_dataset.label_paths[batch_idx]
+                # 2. Costruisci path della versione _color
+                color_path = label_path.replace('_gtFine_labelTrainIds.png', '_gtFine_color.png')
+                color_img = Image.open(color_path)
+
+                fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+                axes[0].imshow(img_np)
+                axes[0].set_title("Input Image")
+                axes[0].axis('off')
+
+                axes[1].imshow(decode_segmap(gt_vis))  # usa colormap ufficiale
+                axes[1].set_title("GT (Colored)")
+                axes[1].axis('off')
+
+                axes[2].imshow(decode_segmap(pred_vis))
+                axes[2].set_title("Prediction")
+                axes[2].axis('off')
+
+                plt.tight_layout()
+                fname = f"{save_dir}/img_gt_pred_gtcolor_epoch_{epoch}.png"
+                plt.savefig(fname)
+                plt.close()
+
 
     # Calcolo delle metriche per epoca
     val_loss /= len(val_loader)
@@ -307,11 +344,11 @@ def main():
             torch.save(checkpoint, checkpoint_path)
             print(f"💾 Checkpoint salvato all’epoca {epoch}")
             
-            # Salvataggio delle metriche su CSV
+            # Salvataggio delle metriche su un unico CSV
+            csv_path = os.path.join(save_dir, 'metrics.csv')
             df = pd.DataFrame(metrics_data)
-            csv_path = os.path.join(save_dir, f'metrics_epoch_{epoch}.csv')
             df.to_csv(csv_path, index=False)
-            print(f"📊 Metriche salvate in {csv_path}")
+            print(f"📊 Metriche aggiornate in {csv_path}")
 
     # Al termine dell'addestramento, carica il miglior modello e valida di nuovo
     model.load_state_dict(torch.load(best_model_path))
