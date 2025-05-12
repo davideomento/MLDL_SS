@@ -50,31 +50,28 @@ class LabelTransform():
         self.size = size
 
     def __call__(self, mask):
-        # Resize la maschera
+        # Resize
         mask = F.resize(mask, self.size, interpolation=F.InterpolationMode.NEAREST)
-        # Restituisce un tensore (non serve più F.pil_to_tensor)
-        return torch.tensor(np.array(mask), dtype=torch.long)
+        # Convert to tensor and long
+        mask_tensor = F.pil_to_tensor(mask).squeeze(0).long()
+        return mask_tensor
 
 
 def get_transforms():
-    train_transform = A.Compose([
-        A.RandomResizedCrop(512, 1024, scale=(0.5, 1.0), ratio=(1.75, 2.25)),
-        A.HorizontalFlip(p=0.5),
-        A.RandomBrightnessContrast(p=0.2),
-        A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.1, rotate_limit=10, p=0.3),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ToTensorV2()
-    ])
-
-    val_transform = A.Compose([
-        A.Resize(512, 1024),
-        A.CenterCrop(512, 1024),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ToTensorV2()
-    ])
-
-    return {'train': train_transform, 'val': val_transform}
-
+    return {
+        'train': transforms.Compose([
+            transforms.RandomResizedCrop((512, 1024)),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ]),
+        'val': transforms.Compose([
+            transforms.Resize((512, 1024)),
+            transforms.CenterCrop((512, 1024)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ]),
+    }
 
 # =====================
 # Dataset & Dataloader
@@ -106,7 +103,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 resnet18 = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
 resnet18_weights = resnet18.state_dict()
 
-model = get_bisenet(
+model = BiSeNet(
     num_classes=19,
     pretrain=True,
     pretrained_weights=resnet18_weights
@@ -119,7 +116,7 @@ class_weights = torch.tensor([
 ], dtype=torch.float).to(device)
 
 criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
-optimizer = optim.SGD(model.parameters(), lr=0.025, momentum=0.9, weight_decay=1e-4)
+optimizer = optim.SGD(model.parameters(), lr=0.0025, momentum=0.9, weight_decay=1e-4)
 
 # =====================
 # Poly LR Scheduler (Per Iter)
