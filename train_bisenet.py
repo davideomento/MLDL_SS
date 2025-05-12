@@ -16,6 +16,7 @@ from tqdm import tqdm
 #from monai.losses import DiceLoss
 from datasets.cityscapes import CityScapes
 from models.bisenet.build_bisenet import BiSeNet
+from models.bisenet.build_contextpath import build_contextpath
 from metrics import benchmark_model, calculate_iou
 
 import albumentations as A
