@@ -29,7 +29,7 @@ model_bisenet = BiSeNet(num_classes=19, context_path='resnet18')
 # =====================
 # Utils - mIoU
 # =====================
-
+'''
 def calculate_iou(predicted, target, num_classes, ignore_index=255):
     # Maschera per escludere i pixel da ignorare
     mask = target != ignore_index
@@ -47,7 +47,24 @@ def calculate_iou(predicted, target, num_classes, ignore_index=255):
         ious.append(iou)
     return ious
 
+'''
+def calculate_iou(predicted, target, num_classes, ignore_index=255):
+    # Maschera per escludere i pixel da ignorare
+    mask = target != ignore_index
 
+    ious = []
+    for i in range(num_classes):
+        # Intersezione: pixel correttamente predetti della classe i
+        intersection = ((predicted == i) & (target == i) & mask).sum().item()
+        # Unione: tutti i pixel predetti o reali della classe i, escludendo quelli da ignorare
+        union = (((predicted == i) | (target == i)) & mask).sum().item()
+
+        if union == 0:
+            iou = float('nan')  # Se non ci sono pixel di quella classe, mettiamo NaN
+        else:
+            iou = intersection / union
+        ious.append(iou)
+    return ious
 
 def benchmark_model(model: torch.nn.Module,
                     image_size: tuple = (3, 512, 1024),
