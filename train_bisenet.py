@@ -169,8 +169,8 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
             main_out, aux1_out, aux2_out = outputs
             loss = (
                 criterion(main_out, targets)
-                + 0.4 * criterion(aux1_out, targets)
-                + 0.4 * criterion(aux2_out, targets)
+                + 1 * criterion(aux1_out, targets)
+                + 1 * criterion(aux2_out, targets)
             )
         else:
             loss = criterion(outputs, targets)
@@ -222,8 +222,8 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
                 main_out, aux1_out, aux2_out = outputs
                 loss = (
                     criterion(main_out, targets)
-                    + 0.4 * criterion(aux1_out, targets)
-                    + 0.4 * criterion(aux2_out, targets)
+                    + 1 * criterion(aux1_out, targets)
+                    + 1 * criterion(aux2_out, targets)
                 )
                 outputs = main_out  # solo per predizione
             else:
