@@ -7,7 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from models.deeplabv2.deeplabv2 import get_deeplab_v2
 import os
-from models.bisenet.build_bisenet import get_bisenet
+from models.bisenet.build_bisenet import BiSeNet
 
 # ================================
 # Ambiente (Colab)
@@ -24,6 +24,7 @@ else:
 
 
 model_deeplab = get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path=pretrain_model_path)
+model_bisenet = BiSeNet(num_classes=19, context_path='resnet18')
 
 # =====================
 # Utils - mIoU
