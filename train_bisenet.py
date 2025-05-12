@@ -59,17 +59,18 @@ class LabelTransform():
 
 def get_transforms():
     train_transform = A.Compose([
-        A.RandomResizedCrop(size=(512, 1024), scale=(0.5, 1.0), ratio=(1.75, 2.25)),
-        A.HorizontalFlip(p=0.5),
-        A.ColorJitter(p=0.2),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        A.OneOf([
+            A.Resize(height=int(512 * scale), width=int(1024 * scale)) for scale in [0.75, 1.0, 1.5, 1.75, 2.0]
+        ], p=1.0),  # random scale
+        A.RandomCrop(height=512, width=1024),   # random crop to target size
+        A.HorizontalFlip(p=0.5),                # random horizontal flip
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),  # mean subtraction
         ToTensorV2()
     ])
 
     val_transform = A.Compose([
         A.Resize(512, 1024),
-        A.Normalize(mean=(0.485, 0.456, 0.406), st
-        d=(0.229, 0.224, 0.225)),
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2()
     ])
 
@@ -77,6 +78,7 @@ def get_transforms():
         'train': train_transform,
         'val': val_transform
     }
+
 
 
 
