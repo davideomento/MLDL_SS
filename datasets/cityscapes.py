@@ -38,7 +38,7 @@ class CityScapes(Dataset):
 
     def __getitem__(self, idx):
         img = np.array(Image.open(self.image_paths[idx]).convert("RGB"))
-        lbl = np.array(Image.open(self.label_paths[idx]))
+        mask = np.array(Image.open(self.label_paths[idx]))
 
             # Expecting transforms that accept both image and mask
         img_transform, mask_transform = self.transform
@@ -49,7 +49,7 @@ class CityScapes(Dataset):
 
         # Apply label-only transforms
         if self.target_transform:
-            lbl = self.target_transform(lbl)
+            mask = self.target_transform(mask)
 
-        return img, lbl
+        return img, mask
 
