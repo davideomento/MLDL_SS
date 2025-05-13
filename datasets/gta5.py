@@ -38,3 +38,39 @@ class GTA5(Dataset):
             label = self.target_transform(label)
 
         return img, label
+    
+    # Mappa le etichette GTA5 secondo la tabella ufficiale di Cityscapes
+    def map_gta5_labels(label):
+        """
+        label: tensor numpy 2D con classi GTA5 (fino a 33)
+        ritorna: label con solo 19 classi Cityscapes (0-18) + 255 (ignore)
+        """
+        # Mappa GTA5 → Cityscapes trainId
+        gta5_to_cityscapes = {
+            7: 0,   # road
+            8: 1,   # sidewalk
+            11: 2,  # building
+            12: 3,  # wall
+            13: 4,  # fence
+            17: 5,  # pole
+            19: 6,  # traffic light
+            20: 7,  # traffic sign
+            21: 8,  # vegetation
+            22: 9,  # terrain
+            23:10,  # sky
+            24:11,  # person
+            25:12,  # rider
+            26:13,  # car
+            27:14,  # truck
+            28:15,  # bus
+            31:16,  # train
+            32:17,  # motorcycle
+            33:18,  # bicycle
+        }
+
+        label_copy = 255 * np.ones_like(label, dtype=np.uint8)  # default: ignore
+        for gta_id, city_id in gta5_to_cityscapes.items():
+            label_copy[label == gta_id] = city_id
+
+        return label_copy
+
