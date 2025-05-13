@@ -37,13 +37,14 @@ class CityScapes(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        img = np.array(Image.open(self.image_paths[idx]).convert("RGB"))
-        mask = np.array(Image.open(self.label_paths[idx]))
+        img = Image.open(self.image_paths[idx]).convert("RGB")
+        mask = Image.open(self.label_paths[idx])
 
             # Expecting transforms that accept both image and mask
         img_transform, mask_transform = self.transform
 
         img = img_transform(img)
+        
         mask = mask_transform(mask)
         mask = torch.as_tensor(np.array(mask), dtype=torch.long)
 
