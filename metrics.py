@@ -50,8 +50,9 @@ def calculate_iou(predicted, target, num_classes, ignore_index=255):
         ious.append(iou)
     return ious
 
+#SISTEMA CALCOLO IoU
 
-
+#Misura la velocità del modello in termini di latenza e FPS (Frame Per Second)  
 def benchmark_model(model: torch.nn.Module,
                     image_size: tuple = (3, 512, 1024),
                     iterations: int = 200,
@@ -60,11 +61,11 @@ def benchmark_model(model: torch.nn.Module,
     Esegue il benchmark del modello: ritorna un DataFrame con latenza e FPS per immagine.
     """
     model = model.to(device).eval()
-    dummy_input = torch.randn((1, *image_size), device=device)
+    dummy_input = torch.randn((1, *image_size), device=device) #creo un input fittizio per il modello della dimensione specificata
 
     # Warm-up
     with torch.no_grad():
-        for _ in range(50):
+        for _ in range(50): #fa 50 test a vuoto per scaldare la GPU, serve per misurazioni più realistiche e stabili
             _ = model(dummy_input)
         if device.type == 'cuda':
             torch.cuda.synchronize()
@@ -77,7 +78,7 @@ def benchmark_model(model: torch.nn.Module,
             _ = model(dummy_input)
             if device.type == 'cuda':
                 torch.cuda.synchronize()
-            end = time.time()
+            end = time.time() #calcola il tempo di esecuzione del modello
 
             latency = end - start
             fps = 1.0 / latency
