@@ -7,32 +7,29 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from models.deeplabv2.deeplabv2 import get_deeplab_v2
 import os
-from models.bisenet.build_bisenet import get_bisenet
+from models.bisenet.build_bisenet import BiSeNet
 
 # ================================
-# Ambiente (Colab, Kaggle, Locale)
+# Ambiente (Colab)
 # ================================
 is_colab = 'COLAB_GPU' in os.environ
-is_kaggle = os.path.exists('/kaggle')
 
 if is_colab:
     print("📍 Ambiente: Colab")
     pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
 
-elif is_kaggle:
-    print("📍 Ambiente: Kaggle")
-    pretrain_model_path = '/kaggle/input/deeplab_resnet_pretrained_imagenet.pth'
 else:
     print("📍 Ambiente: Locale")
     pretrain_model_path = './deeplabv2_weights.pth'
 
 
 model_deeplab = get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path=pretrain_model_path)
+model_bisenet = BiSeNet(num_classes=19, context_path='resnet18')
 
 # =====================
 # Utils - mIoU
 # =====================
-
+'''
 def calculate_iou(predicted, target, num_classes, ignore_index=255):
     # Maschera per escludere i pixel da ignorare
     mask = target != ignore_index
@@ -50,6 +47,22 @@ def calculate_iou(predicted, target, num_classes, ignore_index=255):
         ious.append(iou)
     return ious
 
+'''
+def calculate_iou(predicted, target, num_classes, ignore_index=255):
+    mask = target != ignore_index
+    predicted = predicted[mask]
+    target = target[mask]
+
+    intersection = torch.zeros(num_classes, dtype=torch.float64)
+    union = torch.zeros(num_classes, dtype=torch.float64)
+
+    for i in range(num_classes):
+        inter = ((predicted == i) & (target == i)).sum().item()
+        uni = ((predicted == i) | (target == i)).sum().item()
+        intersection[i] += inter
+        union[i] += uni
+
+    return intersection, union
 
 
 def benchmark_model(model: torch.nn.Module,

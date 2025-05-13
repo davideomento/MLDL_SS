@@ -1,8 +1,8 @@
 import numpy as np
 
 
-def poly_lr_scheduler(optimizer, init_lr, iter, lr_decay_iter=1,
-                      max_iter=300, power=0.9):
+def poly_lr_scheduler(optimizer, init_lr, iter, max_iter, lr_decay_iter=1,
+                      power=0.9):
     """Polynomial decay of learning rate
             :param init_lr is base learning rate
             :param iter is a current iteration
@@ -11,13 +11,10 @@ def poly_lr_scheduler(optimizer, init_lr, iter, lr_decay_iter=1,
             :param power is a polymomial power
 
     """
-    # if iter % lr_decay_iter or iter > max_iter:
-    # 	return optimizer
 
     lr = init_lr*(1 - iter/max_iter)**power
     optimizer.param_groups[0]['lr'] = lr
     return lr
-    # return lr
 
 
 def fast_hist(a, b, n):
