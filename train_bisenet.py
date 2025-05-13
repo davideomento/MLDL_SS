@@ -318,19 +318,13 @@ def main():
     # Carica metriche precedenti se esistono
     if os.path.exists(csv_path):
         df = pd.read_csv(csv_path)
-        try:
-            metrics_data = {
-                'epoch': df['epoch'].tolist(),
-                'train_loss': df['train_loss'].tolist(),
-                'val_loss': df['val_loss'].tolist(),
-                'val_accuracy': df['val_accuracy'].tolist(),
-                'miou': df['miou'].tolist(),
-                # ✅ Usa ast.literal_eval per interpretare le liste salvate come stringhe
-                'iou_per_class': df['iou_per_class'].apply(ast.literal_eval).tolist()
-            }
-        except Exception as e:
-            print(f"❌ Errore nel parsing di iou_per_class: {e}")
-            return
+        metrics_data = {
+            'epoch': df['epoch'].tolist(),
+            'train_loss': df['train_loss'].tolist(),
+            'val_loss': df['val_loss'].tolist(),
+            'val_accuracy': df['val_accuracy'].tolist(),
+            'miou': df['miou'].tolist()  
+        }
         print("📂 Metriche precedenti caricate da metrics.csv")
     else:
         metrics_data = {
@@ -338,8 +332,7 @@ def main():
             'train_loss': [],
             'val_loss': [],
             'val_accuracy': [],
-            'miou': [],
-            'iou_per_class': []
+            'miou': []
         }
 
     if os.path.exists(checkpoint_path):
@@ -351,17 +344,20 @@ def main():
         print(f"✔ Ripreso da epoca {checkpoint['epoch']} con mIoU: {best_miou:.4f}")
 
     for epoch in range(start_epoch, num_epochs + 1):
+        # Training
         train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
+        
+        # Validation and Metrics
         val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
-
-        # ✅ Salviamo direttamente la lista
+        
+        # Registriamo i dati per il salvataggio
         metrics_data['epoch'].append(epoch)
         metrics_data['train_loss'].append(train_loss)
         metrics_data['val_loss'].append(val_metrics['loss'])
         metrics_data['val_accuracy'].append(val_metrics['accuracy'])
         metrics_data['miou'].append(val_metrics['miou'])
-        metrics_data['iou_per_class'].append(val_metrics['iou_per_class'].cpu().numpy().tolist())
 
+        # Salvataggio del modello migliore
         if val_metrics['miou'] > best_miou:
             best_miou = val_metrics['miou']
             torch.save(model.state_dict(), best_model_path)
@@ -376,15 +372,19 @@ def main():
             }
             torch.save(checkpoint, checkpoint_path)
             print(f"💾 Checkpoint salvato all’epoca {epoch}")
-
-            # ✅ Salvataggio CSV: converti ogni lista in stringa
+            
+            # Salvataggio delle metriche su un unico CSV
             df = pd.DataFrame(metrics_data)
-            df['iou_per_class'] = df['iou_per_class'].apply(json.dumps)
+            # Prima di salvare
+
             df.to_csv(csv_path, index=False)
             print(f"📊 Metriche aggiornate in {csv_path}")
 
+    # Al termine dell'addestramento, carica il miglior modello e valida di nuovo
     model.load_state_dict(torch.load(best_model_path))
     validate(model, val_dataloader, criterion)
+
+    # Esegui il grafico delle metriche salvate
     plot_metrics(metrics_data)
 
 def plot_metrics(metrics_data):
