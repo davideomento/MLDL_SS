@@ -28,28 +28,22 @@ def set_seed(seed=42):
 set_seed(42)
 
 # ================================
-# Ambiente (Colab, Kaggle, Locale)
+# Ambiente: Colab o Locale
 # ================================
 is_colab = 'COLAB_GPU' in os.environ
-is_kaggle = os.path.exists('/kaggle')
 
 if is_colab:
     print("📍 Ambiente: Colab")
-    base_path = '/content/drive/MyDrive/Project_MLDL'  # ← Personalizza se serve
+    base_path = '/content/drive/MyDrive/Project_MLDL'
     data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
     pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
-elif is_kaggle:
-    print("📍 Ambiente: Kaggle")
-    base_path = '/kaggle/working'
-    data_dir = '/kaggle/input/Cityscapes'
-    pretrain_model_path = '/kaggle/input/deeplab_resnet_pretrained_imagenet.pth'
 else:
     print("📍 Ambiente: Locale")
     base_path = './'
     data_dir = './Cityscapes/Cityspaces'
     pretrain_model_path = './deeplabv2_weights.pth'
 
-save_dir = os.path.join(base_path, 'checkpoints')
+save_dir = os.path.join(base_path, 'checkpoints_tati')
 os.makedirs(save_dir, exist_ok=True)
 
 # =====================
@@ -117,9 +111,22 @@ criterion = nn.CrossEntropyLoss(ignore_index=255)
 optimizer = optim.SGD(model.optim_parameters(lr=0.001), momentum=0.9, weight_decay=0.0005)
 
 # =====================
+# Poly Learning Rate Scheduler
+# =====================
+class PolyLR(optim.lr_scheduler._LRScheduler):
+    def __init__(self, optimizer, max_iter, power=0.9, last_epoch=-1):
+        self.max_iter = max_iter
+        self.power = power
+        super(PolyLR, self).__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        current_iter = self.last_epoch
+        return [base_lr * (1 - current_iter / self.max_iter) ** self.power for base_lr in self.base_lrs]
+
+# =====================
 # Train / Validate
 # =====================
-def train(epoch, model, train_loader, criterion, optimizer):
+def train(epoch, model, train_loader, criterion, optimizer, scheduler):
     model.train()
     running_loss = 0.0
     loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}")
@@ -135,6 +142,8 @@ def train(epoch, model, train_loader, criterion, optimizer):
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
+
+        scheduler.step()  # Step the scheduler to update learning rate
 
         running_loss += loss.item()
         loop.set_postfix(loss=running_loss / (batch_idx + 1))
@@ -192,8 +201,12 @@ def main():
         start_epoch = checkpoint['epoch'] + 1
         print(f"✔ Ripreso da epoca {checkpoint['epoch']} con mIoU: {best_miou:.4f}")
 
+    # Initialize the poly scheduler
+    max_iter = len(train_dataloader) * num_epochs
+    scheduler = PolyLR(optimizer, max_iter=max_iter, power=0.9)
+
     for epoch in range(start_epoch, num_epochs + 1):
-        train(epoch, model, train_dataloader, criterion, optimizer)
+        train(epoch, model, train_dataloader, criterion, optimizer, scheduler)
         val_accuracy, miou = validate(model, val_dataloader, criterion)
 
         if miou > best_miou:
@@ -221,7 +234,7 @@ def main():
     model.load_state_dict(torch.load(best_model_path))
     validate(model, val_dataloader, criterion)
 
-    # Plot
+    # Plot Latency and FPS
     plt.figure(figsize=(10, 4))
     plt.plot(df['iteration'], df['latency_s'], label='Latency (s)')
     plt.title('Latency per Iteration')

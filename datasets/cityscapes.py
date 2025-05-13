@@ -11,38 +11,47 @@ class CityScapes(Dataset):
         self.transform = transform
         self.target_transform = target_transform
 
+        # Ensure correct subfolders; adjust if your structure differs
         self.image_dir = os.path.join(root_dir, 'images', split)
         self.label_dir = os.path.join(root_dir, 'gtFine', split)
 
         self.image_paths = []
         self.label_paths = []
 
-        for city in os.listdir(self.image_dir):
-            city_path = os.path.join(self.image_dir, city)
-            for file_name in os.listdir(city_path):
+        for city in sorted(os.listdir(self.image_dir)):
+            city_img_dir = os.path.join(self.image_dir, city)
+            city_label_dir = os.path.join(self.label_dir, city)
+            if not os.path.isdir(city_img_dir):
+                continue
+            for file_name in sorted(os.listdir(city_img_dir)):
                 if file_name.endswith('_leftImg8bit.png'):
-                    self.image_paths.append(os.path.join(city_path, file_name))
-                    label_file = file_name.replace('_leftImg8bit.png', '_gtFine_labelTrainIds.png')
-                    self.label_paths.append(os.path.join(self.label_dir, city, label_file))
-
+                    img_path = os.path.join(city_img_dir, file_name)
+                    # Construct corresponding gtFine filename
+                    label_name = file_name.replace('_leftImg8bit.png', '_gtFine_labelTrainIds.png')
+                    lbl_path = os.path.join(city_label_dir, label_name)
+                    if os.path.isfile(lbl_path):
+                        self.image_paths.append(img_path)
+                        self.label_paths.append(lbl_path)
 
     def __len__(self):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        # Usa self.image_paths[idx] e self.label_paths[idx]
-        img_path = self.image_paths[idx]
-        mask_path = self.label_paths[idx]
+        img = np.array(Image.open(self.image_paths[idx]).convert("RGB"))
+        lbl = np.array(Image.open(self.label_paths[idx]))
 
-        image = Image.open(img_path).convert("RGB")
-        mask = Image.open(mask_path)
-
+        # Apply albumentations-style transforms (if provided)
         if self.transform:
-            transformed = self.transform(image=np.array(image), mask=np.array(mask))
-            image = transformed["image"]
-            mask = torch.tensor(transformed["mask"]).long()
+            # Expecting transforms that accept both image and mask
+            augmented = self.transform(image=img, mask=lbl)
+            img = augmented['image']
+            lbl = augmented['mask']
+        else:
+            # Fallback: convert to tensor
+            img = torch.from_numpy(img).permute(2, 0, 1).float() / 255.0
 
+        # Apply label-only transforms
         if self.target_transform:
-            mask = self.target_transform(mask)
+            lbl = self.target_transform(lbl)
 
-        return image, mask
+        return img, lbl
