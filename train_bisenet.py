@@ -377,7 +377,9 @@ def main():
             
             # Salvataggio delle metriche su un unico CSV
             df = pd.DataFrame(metrics_data)
-            df['iou_per_class'] = df['iou_per_class'].apply(json.dumps)
+            # Prima di salvare
+            df['iou_per_class'] = df['iou_per_class'].apply(lambda x: json.dumps(x.tolist()))
+
             df.to_csv(csv_path, index=False)
             print(f"📊 Metriche aggiornate in {csv_path}")
 
