@@ -311,14 +311,29 @@ def main():
     init_lr = 0.025
 
     # Dati per il salvataggio delle metriche
-    metrics_data = {
-        'epoch': [],
-        'train_loss': [],
-        'val_loss': [],
-        'val_accuracy': [],
-        'miou': [],
-        'iou_per_class': []
-    }
+    csv_path = os.path.join(save_dir, 'metrics.csv')
+
+    # Carica metriche precedenti se esistono
+    if os.path.exists(csv_path):
+        df = pd.read_csv(csv_path)
+        metrics_data = {
+            'epoch': df['epoch'].tolist(),
+            'train_loss': df['train_loss'].tolist(),
+            'val_loss': df['val_loss'].tolist(),
+            'val_accuracy': df['val_accuracy'].tolist(),
+            'miou': df['miou'].tolist(),
+            'iou_per_class': df['iou_per_class'].apply(eval).tolist()  # Trasforma stringa → lista
+        }
+        print("📂 Metriche precedenti caricate da metrics.csv")
+    else:
+        metrics_data = {
+            'epoch': [],
+            'train_loss': [],
+            'val_loss': [],
+            'val_accuracy': [],
+            'miou': [],
+            'iou_per_class': []
+        }
 
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
@@ -360,7 +375,6 @@ def main():
             print(f"💾 Checkpoint salvato all’epoca {epoch}")
             
             # Salvataggio delle metriche su un unico CSV
-            csv_path = os.path.join(save_dir, 'metrics.csv')
             df = pd.DataFrame(metrics_data)
             df.to_csv(csv_path, index=False)
             print(f"📊 Metriche aggiornate in {csv_path}")
