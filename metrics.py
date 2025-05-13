@@ -49,22 +49,21 @@ def calculate_iou(predicted, target, num_classes, ignore_index=255):
 
 '''
 def calculate_iou(predicted, target, num_classes, ignore_index=255):
-    # Maschera per escludere i pixel da ignorare
     mask = target != ignore_index
+    predicted = predicted[mask]
+    target = target[mask]
 
-    ious = []
+    intersection = torch.zeros(num_classes, dtype=torch.float64)
+    union = torch.zeros(num_classes, dtype=torch.float64)
+
     for i in range(num_classes):
-        # Intersezione: pixel correttamente predetti della classe i
-        intersection = ((predicted == i) & (target == i) & mask).sum().item()
-        # Unione: tutti i pixel predetti o reali della classe i, escludendo quelli da ignorare
-        union = (((predicted == i) | (target == i)) & mask).sum().item()
+        inter = ((predicted == i) & (target == i)).sum().item()
+        uni = ((predicted == i) | (target == i)).sum().item()
+        intersection[i] += inter
+        union[i] += uni
 
-        if union == 0:
-            iou = float('nan')  # Se non ci sono pixel di quella classe, mettiamo NaN
-        else:
-            iou = intersection / union
-        ious.append(iou)
-    return ious
+    return intersection, union
+
 
 def benchmark_model(model: torch.nn.Module,
                     image_size: tuple = (3, 512, 1024),

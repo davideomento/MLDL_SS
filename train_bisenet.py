@@ -18,7 +18,7 @@ from datasets.cityscapes import CityScapes
 from models.bisenet.build_bisenet import BiSeNet
 from models.bisenet.build_contextpath import build_contextpath
 from metrics import benchmark_model, calculate_iou
-
+from utils import poly_lr_scheduler
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
@@ -58,12 +58,31 @@ class LabelTransform():
 
 ###############
 
+# Trasformazione per l'immagine
+img_transform = transforms.Compose([
+    transforms.Resize((512, 1024)),  # Resize fisso
+    transforms.ToTensor(),
+    transforms.Normalize(mean=(0.485, 0.456, 0.406),
+                         std=(0.229, 0.224, 0.225)),
+])
+
+# Trasformazione per la mask (solo resize, no toTensor, no normalize)
+def mask_transform(mask):
+    return F.resize(mask, (512, 1024), interpolation=F.InterpolationMode.NEAREST)
+
+def get_transforms():
+    return {
+        'train': (img_transform, mask_transform),
+        'val': (img_transform, mask_transform)
+    }
+'''
 def get_transforms():
     train_transform = A.Compose([
         A.OneOf([
             A.Resize(height=int(512 * s), width=int(1024 * s))
             for s in [0.75, 1.0, 1.5, 1.75, 2.0]
         ], p=1.0),
+        
         A.PadIfNeeded(min_height=512, min_width=1024, border_mode=0),  # padding se resize più piccola
         A.RandomCrop(height=512, width=1024),  # crop fisso
         A.HorizontalFlip(p=0.5),
@@ -80,7 +99,7 @@ def get_transforms():
     return {
         'train': train_transform,
         'val': val_transform
-    }
+    }'''
 
 
 
@@ -123,8 +142,6 @@ context_path = build_contextpath(
 
 model = BiSeNet(num_classes=19, context_path='resnet18').cuda()
 
-
-
 class_weights = torch.tensor([
     2.6, 6.9, 3.5, 3.6, 3.6, 3.8, 3.4, 3.5, 5.1, 4.7,
     6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
@@ -132,17 +149,12 @@ class_weights = torch.tensor([
 
 criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
 #dice_loss = DiceLoss(to_onehot_y=True, softmax=True)
-optimizer = torch.optim.SGD(model.parameters(), lr=2.5e-2, weight_decay=1e-4, momentum=0.9)
+optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-4, momentum=0.9)
 # =====================
 # Poly LR Scheduler (Per Iter)
 # =====================
 num_epochs = 50
-max_iter = len(train_dataloader) * num_epochs
-
-def poly_lr_scheduler(optimizer, init_lr, curr_iter, max_iter, power=0.9):
-    lr = init_lr * (1 - curr_iter / max_iter) ** power
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
+max_iter = num_epochs * len(train_dataloader)
 
 # =====================
 # Training & Validation
@@ -158,16 +170,16 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
 
         iter_count = global_iter + batch_idx
         poly_lr_scheduler(optimizer, init_lr, iter_count, max_iter)  # <-- usa PolyLR per iterazione
-
         optimizer.zero_grad()
         outputs = model(inputs)
-
+        alpha = 1
         if isinstance(outputs, (tuple, list)) and len(outputs) == 3:
+
             main_out, aux1_out, aux2_out = outputs
             loss = (
                 criterion(main_out, targets)
-                + 1 * criterion(aux1_out, targets)
-                + 1 * criterion(aux2_out, targets)
+                + alpha * criterion(aux1_out, targets)
+                + alpha * criterion(aux2_out, targets)
             )
         else:
             loss = criterion(outputs, targets)
@@ -208,31 +220,26 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
     total_ious = []
     loss_values = []
     accuracy_values = []
+    total_intersection = torch.zeros(num_classes, dtype=torch.float64)
+    total_union = torch.zeros(num_classes, dtype=torch.float64)
+
 
     with torch.no_grad():
         loop = tqdm(enumerate(val_loader), total=len(val_loader), desc="Validating")
         for batch_idx, (inputs, targets) in loop:
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = model(inputs)
-
-            if isinstance(outputs, (tuple, list)) and len(outputs) == 3:
-                main_out, aux1_out, aux2_out = outputs
-                loss = (
-                    criterion(main_out, targets)
-                    + 1 * criterion(aux1_out, targets)
-                    + 1 * criterion(aux2_out, targets)
-                )
-                outputs = main_out  # solo per predizione
-            else:
-                loss = criterion(outputs, targets)
+            loss = criterion(outputs, targets)
 
             val_loss += loss.item()
             _, predicted = outputs.max(1)
             correct += (predicted == targets).sum().item()
             total += targets.numel()
 
-            ious = calculate_iou(predicted, targets, num_classes, ignore_index=255)
-            total_ious.append(ious)
+            inter, uni = calculate_iou(predicted, targets, num_classes, ignore_index=255)
+            total_intersection += inter
+            total_union += uni
+
 
             # Salvataggio della loss e accuratezza per epoca
             loss_values.append(loss.item())
@@ -277,8 +284,8 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
     # Calcolo delle metriche per epoca
     val_loss /= len(val_loader)
     val_accuracy = 100. * correct / total
-    iou_per_class = torch.tensor(total_ious).nanmean(dim=0)
-    miou = iou_per_class.nanmean().item()
+    iou_per_class = total_intersection / total_union
+    miou = torch.nanmean(iou_per_class).item()
 
     print(f'Validation Loss: {val_loss:.6f} | Acc: {val_accuracy:.2f}% | mIoU: {miou:.4f}')
     
