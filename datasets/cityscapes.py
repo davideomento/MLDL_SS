@@ -55,4 +55,3 @@ class CityScapes(Dataset):
             lbl = self.target_transform(lbl)
 
         return img, lbl
-
