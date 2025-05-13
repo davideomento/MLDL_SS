@@ -40,15 +40,12 @@ class CityScapes(Dataset):
         img = np.array(Image.open(self.image_paths[idx]).convert("RGB"))
         lbl = np.array(Image.open(self.label_paths[idx]))
 
-        # Apply albumentations-style transforms (if provided)
-        if self.transform:
             # Expecting transforms that accept both image and mask
-            augmented = self.transform(image=img, mask=lbl)
-            img = augmented['image']
-            lbl = augmented['mask']
-        else:
-            # Fallback: convert to tensor
-            img = torch.from_numpy(img).permute(2, 0, 1).float() / 255.0
+        img_transform, mask_transform = self.transform
+
+        img = img_transform(img)
+        mask = mask_transform(mask)
+        mask = torch.as_tensor(np.array(mask), dtype=torch.long)
 
         # Apply label-only transforms
         if self.target_transform:
