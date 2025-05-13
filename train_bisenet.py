@@ -6,14 +6,11 @@ from PIL import Image
 import pandas as pd
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torchvision.transforms as transforms
 from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
-import torchvision.models as models
 from tqdm import tqdm
-import json
-import ast
+
 
 #from monai.losses import DiceLoss
 from datasets.cityscapes import CityScapes
@@ -21,8 +18,7 @@ from models.bisenet.build_bisenet import BiSeNet
 from models.bisenet.build_contextpath import build_contextpath
 from metrics import benchmark_model, calculate_iou
 from utils import poly_lr_scheduler
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
+
 
 # =====================
 # Set Seed
@@ -152,11 +148,9 @@ class_weights = torch.tensor([
 criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
 #dice_loss = DiceLoss(to_onehot_y=True, softmax=True)
 optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-4, momentum=0.9)
-# =====================
-# Poly LR Scheduler (Per Iter)
-# =====================
+
 num_epochs = 50
-max_iter = num_epochs * len(train_dataloader)
+max_iter = num_epochs
 
 # =====================
 # Training & Validation
@@ -165,13 +159,12 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
     model.train()
     running_loss = 0.0
     loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}")
-    global_iter = (epoch - 1) * len(train_loader)
+    poly_lr_scheduler(optimizer, init_lr, epoch, max_iter)  # <-- usa PolyLR per iterazione
+
 
     for batch_idx, (inputs, targets) in loop:
         inputs, targets = inputs.to(device), targets.to(device)
 
-        iter_count = global_iter + batch_idx
-        poly_lr_scheduler(optimizer, init_lr, iter_count, max_iter)  # <-- usa PolyLR per iterazione
         optimizer.zero_grad()
         outputs = model(inputs)
         alpha = 1
@@ -219,7 +212,6 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
     val_loss = 0
     correct = 0
     total = 0
-    total_ious = []
     loss_values = []
     accuracy_values = []
     total_intersection = torch.zeros(num_classes, dtype=torch.float64)
@@ -310,7 +302,7 @@ def main():
     save_every = 1
     best_miou = 0
     start_epoch = 1
-    init_lr = 0.025
+    init_lr = 1e-3
 
     # Dati per il salvataggio delle metriche
     csv_path = os.path.join(save_dir, 'metrics.csv')

@@ -12,15 +12,9 @@ from models.bisenet.build_bisenet import BiSeNet
 # ================================
 # Ambiente (Colab)
 # ================================
-is_colab = 'COLAB_GPU' in os.environ
 
-if is_colab:
-    print("📍 Ambiente: Colab")
-    pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
-
-else:
-    print("📍 Ambiente: Locale")
-    pretrain_model_path = './deeplabv2_weights.pth'
+print("📍 Ambiente: Colab")
+pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
 
 
 model_deeplab = get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path=pretrain_model_path)
