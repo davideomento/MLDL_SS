@@ -12,6 +12,7 @@ from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 import torchvision.models as models
 from tqdm import tqdm
+import json
 
 #from monai.losses import DiceLoss
 from datasets.cityscapes import CityScapes
@@ -322,7 +323,7 @@ def main():
             'val_loss': df['val_loss'].tolist(),
             'val_accuracy': df['val_accuracy'].tolist(),
             'miou': df['miou'].tolist(),
-            'iou_per_class': df['iou_per_class'].apply(eval).tolist()  # Trasforma stringa → lista
+            'iou_per_class': df['iou_per_class'].apply(json.loads).tolist()
         }
         print("📂 Metriche precedenti caricate da metrics.csv")
     else:
@@ -356,7 +357,7 @@ def main():
         metrics_data['val_loss'].append(val_metrics['loss'])
         metrics_data['val_accuracy'].append(val_metrics['accuracy'])
         metrics_data['miou'].append(val_metrics['miou'])
-        metrics_data['iou_per_class'].append(val_metrics['iou_per_class'].cpu().numpy())
+        metrics_data['iou_per_class'].append(val_metrics['iou_per_class'].cpu().numpy().tolist())
 
         # Salvataggio del modello migliore
         if val_metrics['miou'] > best_miou:
@@ -376,6 +377,7 @@ def main():
             
             # Salvataggio delle metriche su un unico CSV
             df = pd.DataFrame(metrics_data)
+            df['iou_per_class'] = df['iou_per_class'].apply(json.dumps)
             df.to_csv(csv_path, index=False)
             print(f"📊 Metriche aggiornate in {csv_path}")
 
