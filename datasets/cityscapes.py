@@ -38,8 +38,8 @@ class CityScapes(Dataset):
 
     def __getitem__(self, idx):
         img = Image.open(self.image_paths[idx]).convert("RGB")
-        
-            # Expecting transforms that accept both image and mask
+        mask = Image.open(self.label_paths[idx]).convert("L")
+        # Expecting transforms that accept both image and mask
         img_transform, mask_transform = self.transform
 
         img = img_transform(img)
