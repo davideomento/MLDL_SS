@@ -37,21 +37,18 @@ class CityScapes(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        img = np.array(Image.open(self.image_paths[idx]).convert("RGB"))
-        lbl = np.array(Image.open(self.label_paths[idx]))
+        img = Image.open(self.image_paths[idx]).convert("RGB")
+        mask = Image.open(self.label_paths[idx]).convert("L")
+        # Expecting transforms that accept both image and mask
+        img_transform, mask_transform = self.transform
 
-        # Apply albumentations-style transforms (if provided)
-        if self.transform:
-            # Expecting transforms that accept both image and mask
-            augmented = self.transform(image=img, mask=lbl)
-            img = augmented['image']
-            lbl = augmented['mask']
-        else:
-            # Fallback: convert to tensor
-            img = torch.from_numpy(img).permute(2, 0, 1).float() / 255.0
+        img = img_transform(img)
+        
+        mask = mask_transform(mask)
+        mask = torch.as_tensor(np.array(mask), dtype=torch.long)
 
         # Apply label-only transforms
         if self.target_transform:
-            lbl = self.target_transform(lbl)
+            mask = self.target_transform(mask)
 
-        return img, lbl
+        return img, mask
