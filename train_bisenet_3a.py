@@ -11,6 +11,7 @@ import wandb
 from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from datasets.gta5 import GTA5
 
 
 #from monai.losses import DiceLoss
@@ -40,7 +41,7 @@ set_seed(42)
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-save_dir = os.path.join(base_path, 'checkpoints_wandb')
+save_dir = os.path.join(base_path, 'checkpoints_3a')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -58,11 +59,16 @@ class LabelTransform():
 ###############
 
 # Trasformazione per l'immagine
-img_transform = transforms.Compose([
+img_transform_gta = transforms.Compose([
+            transforms.Resize((720, 1280)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+img_transform_cs = transforms.Compose([
     transforms.Resize((512, 1024)),  # Resize fisso
     transforms.ToTensor(),
     transforms.Normalize(mean=(0.485, 0.456, 0.406),
-                         std=(0.229, 0.224, 0.225)),
+                         std=(0.229, 0.224, 0.225))
 ])
 
 # Trasformazione per la mask (solo resize, no toTensor, no normalize)
@@ -71,9 +77,10 @@ def mask_transform(mask):
 
 def get_transforms():
     return {
-        'train': (img_transform, mask_transform),
-        'val': (img_transform, mask_transform)
+        'train': (img_transform_gta, mask_transform),
+        'val': (img_transform_cs, mask_transform)
     }
+    
 '''
 def get_transforms():
     train_transform = A.Compose([
@@ -111,11 +118,11 @@ def get_transforms():
 transforms_dict = get_transforms()
 label_transform = LabelTransform()
 
-train_dataset = CityScapes(
+train_dataset = GTA5(
     root_dir=data_dir,
     split='train',
     transform=transforms_dict['train'],
-    target_transform=label_transform
+    target_transform=LabelTransform()
 )
 
 val_dataset = CityScapes(
