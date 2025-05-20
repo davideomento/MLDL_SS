@@ -40,7 +40,7 @@ set_seed(42)
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-save_dir = os.path.join(base_path, 'checkpoints_tati4')
+save_dir = os.path.join(base_path, 'checkpoints_wandb')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -232,7 +232,7 @@ def decode_segmap(mask):
 
 
 
-def validate(model, val_loader, criterion, num_classes=19, epoch=0):
+def validate(model, val_loader, criterion, epoch, num_classes=19):
     model.eval()
     val_loss = 0
     correct = 0
@@ -307,6 +307,11 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
     miou = torch.nanmean(iou_per_class).item()
 
     print(f'Validation Loss: {val_loss:.6f} | Acc: {val_accuracy:.2f}% | mIoU: {miou:.4f}')
+
+    if epoch == 50:
+        bench_results = benchmark_model(model)
+    else:
+        bench_results = {k: None for k in ['mean_latency','mean_fps','num_flops','trainable_params']}
     
     return {
         'loss': val_loss,
@@ -314,7 +319,8 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
         'miou': miou,
         'iou_per_class': iou_per_class,
         'loss_values': loss_values,
-        'accuracy_values': accuracy_values
+        'accuracy_values': accuracy_values,
+        **bench_results
     }
 
 
@@ -364,7 +370,7 @@ def main():
         # 🔹 Wandb project name dinamico in base al modello
         project_name = f"{var_model}_lr_0.00625_0.6ce_0.2ls_0.2tv"
         wandb.init(project=project_name,
-                entity="s324699-politecnico-di-torino",
+                entity="mldl-semseg-politecnico-di-torino",
                 name=f"epoch_{epoch}",
                 reinit=True)  # Inizializza wandb per questa epoca
         print("🛰️ Wandb inizializzato")

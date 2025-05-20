@@ -63,9 +63,9 @@ def calculate_iou(predicted, target, num_classes, ignore_index=255):
 def benchmark_model(model: torch.nn.Module,
                     image_size: tuple = (3, 512, 1024),
                     iterations: int = 200,
-                    device: str = 'cuda') -> pd.DataFrame:
+                    device: str = 'cuda') -> dict:
     """
-    Esegue il benchmark del modello: ritorna un DataFrame con latenza e FPS per immagine.
+    Esegue il benchmark del modello: ritorna un dizionario con latenza, FPS, FLOPs e num_parametri.
     """
     model = model.to(device).eval()
     dummy_input = torch.randn((1, *image_size), device=device)
@@ -74,41 +74,53 @@ def benchmark_model(model: torch.nn.Module,
     with torch.no_grad():
         for _ in range(50):
             _ = model(dummy_input)
-        if device.type == 'cuda':
+        if device == 'cuda' or (hasattr(device, 'type') and device.type == 'cuda'):
             torch.cuda.synchronize()
 
-    # Benchmark
+    # Benchmark latenza e FPS
     records = []
     with torch.no_grad():
         for i in range(iterations):
             start = time.time()
             _ = model(dummy_input)
-            if device.type == 'cuda':
+            if device == 'cuda' or (hasattr(device, 'type') and device.type == 'cuda'):
                 torch.cuda.synchronize()
             end = time.time()
 
             latency = end - start
             fps = 1.0 / latency
-            records.append({'iteration': i + 1, 'latency_s': latency, 'fps': fps})
+            records.append({'latency_s': latency, 'fps': fps})
 
-    return pd.DataFrame.from_records(records)
+    df_bench = pd.DataFrame.from_records(records)
+    mean_latency = df_bench['latency_s'].mean()
+    mean_fps = df_bench['fps'].mean()
 
-#Function to save the metrics on WandB           
+    # FLOPs e parametri con fvcore
+    # Passa l'input senza batch dimension per FlopCountAnalysis
+    flop_analyzer = FlopCountAnalysis(model, dummy_input)
+    total_flops = flop_analyzer.total()  # numero di FLOPs
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+    return {
+        'mean_latency': mean_latency,
+        'mean_fps': mean_fps,
+        'num_flops': total_flops,
+        'trainable_params': num_params
+    }
+
+#Function to save the metrics on WandB
 def save_metrics_on_wandb(epoch, metrics_train, metrics_val):
 
     to_serialize = {
         "epoch": epoch,
-        "train_mIoU": metrics_train['mean_iou'],
         "train_loss": metrics_train['mean_loss'],
-        "val_mIoU": metrics_val['mean_iou'],
-        "val_mIoU_per_class": metrics_val['iou_per_class'],
-        "val_loss": metrics_val['mean_loss']
+        "val_mIoU": metrics_val['miou'],
+        "val_IoU_per_class": metrics_val['iou_per_class'],
+        "val_loss": metrics_val['loss_values'],
+        "val_accuracy":metrics_val['accuracy_values']
     }
 
     print(metrics_train['iou_per_class'])
-
-    for index, iou in enumerate(metrics_train['iou_per_class']):
-        to_serialize[f"class_{index}_train"] = iou
 
     for index, iou in enumerate(metrics_val['iou_per_class']):
         to_serialize[f"class_{index}_val"] = iou
@@ -120,14 +132,9 @@ def save_metrics_on_wandb(epoch, metrics_train, metrics_val):
     # Salvataggio delle metriche finali al 50esimo epoch
     if epoch == 50:
         wandb.log({
-            "train_mIoU_final": metrics_train['mean_iou'],
             "train_loss_final": metrics_train['mean_loss'],
-            "train_latency": metrics_train['mean_latency'],
-            "train_fps": metrics_train['mean_fps'],
-            "train_flops": metrics_train['num_flops'],
-            "train_params": metrics_train['trainable_params'],
-            "val_mIoU_final": metrics_val['mean_iou'],
-            "val_loss_final": metrics_val['mean_loss'],
+            "val_IoU_final": metrics_val['miou'],
+            "val_loss_final": metrics_val['loss_values'],
             "val_latency": metrics_val['mean_latency'],
             "val_fps": metrics_val['mean_fps'],
             "val_flops": metrics_val['num_flops'],
