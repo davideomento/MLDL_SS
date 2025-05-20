@@ -115,11 +115,10 @@ def save_metrics_on_wandb(epoch, metrics_train, metrics_val):
         "epoch": epoch,
         "train_loss": metrics_train,
         "val_mIoU": metrics_val['miou'],
-        "val_IoU_per_class": metrics_val['iou_per_class'],
-        "val_loss": metrics_val['loss_values'],
-        "val_accuracy":metrics_val['accuracy_values']
+        "val_loss": metrics_val['loss'],
+        "val_accuracy":metrics_val['accuracy']
     }
-
+    #"val_IoU_per_class": metrics_val['iou_per_class']
     for index, iou in enumerate(metrics_val['iou_per_class']):
         to_serialize[f"class_{index}_val"] = iou
 
@@ -132,7 +131,7 @@ def save_metrics_on_wandb(epoch, metrics_train, metrics_val):
         wandb.log({
             "train_loss_final": metrics_train,
             "val_IoU_final": metrics_val['miou'],
-            "val_loss_final": metrics_val['loss_values'],
+            "val_loss_final": metrics_val['loss'],
             "val_latency": metrics_val['mean_latency'],
             "val_fps": metrics_val['mean_fps'],
             "val_flops": metrics_val['num_flops'],
