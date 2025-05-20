@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from models.deeplabv2.deeplabv2 import get_deeplab_v2
 import os
 from models.bisenet.build_bisenet import BiSeNet
+import wandb
 
 # ================================
 # Ambiente (Colab)
@@ -91,3 +92,44 @@ def benchmark_model(model: torch.nn.Module,
             records.append({'iteration': i + 1, 'latency_s': latency, 'fps': fps})
 
     return pd.DataFrame.from_records(records)
+
+#Function to save the metrics on WandB           
+def save_metrics_on_wandb(epoch, metrics_train, metrics_val):
+
+    to_serialize = {
+        "epoch": epoch,
+        "train_mIoU": metrics_train['mean_iou'],
+        "train_loss": metrics_train['mean_loss'],
+        "val_mIoU": metrics_val['mean_iou'],
+        "val_mIoU_per_class": metrics_val['iou_per_class'],
+        "val_loss": metrics_val['mean_loss']
+    }
+
+    print(metrics_train['iou_per_class'])
+
+    for index, iou in enumerate(metrics_train['iou_per_class']):
+        to_serialize[f"class_{index}_train"] = iou
+
+    for index, iou in enumerate(metrics_val['iou_per_class']):
+        to_serialize[f"class_{index}_val"] = iou
+
+    # Log delle metriche di training e validazione su WandB
+    if epoch != 50:
+        wandb.log(to_serialize)
+
+    # Salvataggio delle metriche finali al 50esimo epoch
+    if epoch == 50:
+        wandb.log({
+            "train_mIoU_final": metrics_train['mean_iou'],
+            "train_loss_final": metrics_train['mean_loss'],
+            "train_latency": metrics_train['mean_latency'],
+            "train_fps": metrics_train['mean_fps'],
+            "train_flops": metrics_train['num_flops'],
+            "train_params": metrics_train['trainable_params'],
+            "val_mIoU_final": metrics_val['mean_iou'],
+            "val_loss_final": metrics_val['mean_loss'],
+            "val_latency": metrics_val['mean_latency'],
+            "val_fps": metrics_val['mean_fps'],
+            "val_flops": metrics_val['num_flops'],
+            "val_params": metrics_val['trainable_params']
+        })
