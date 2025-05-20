@@ -113,14 +113,12 @@ def save_metrics_on_wandb(epoch, metrics_train, metrics_val):
 
     to_serialize = {
         "epoch": epoch,
-        "train_loss": metrics_train['mean_loss'],
+        "train_loss": metrics_train,
         "val_mIoU": metrics_val['miou'],
         "val_IoU_per_class": metrics_val['iou_per_class'],
         "val_loss": metrics_val['loss_values'],
         "val_accuracy":metrics_val['accuracy_values']
     }
-
-    print(metrics_train['iou_per_class'])
 
     for index, iou in enumerate(metrics_val['iou_per_class']):
         to_serialize[f"class_{index}_val"] = iou
@@ -132,7 +130,7 @@ def save_metrics_on_wandb(epoch, metrics_train, metrics_val):
     # Salvataggio delle metriche finali al 50esimo epoch
     if epoch == 50:
         wandb.log({
-            "train_loss_final": metrics_train['mean_loss'],
+            "train_loss_final": metrics_train,
             "val_IoU_final": metrics_val['miou'],
             "val_loss_final": metrics_val['loss_values'],
             "val_latency": metrics_val['mean_latency'],
