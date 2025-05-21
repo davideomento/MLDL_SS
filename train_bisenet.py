@@ -151,7 +151,7 @@ criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
 optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-4, momentum=0.9)
 
 num_epochs = 50
-max_iter = num_epochs
+max_iter = num_epochs* len(train_dataloader)
 
 # =====================
 # Training & Validation
@@ -160,7 +160,8 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
     model.train()
     running_loss = 0.0
     loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}")
-    poly_lr_scheduler(optimizer, init_lr, epoch, max_iter)
+    current_iter = epoch * len(train_loader) + batch_idx
+    poly_lr_scheduler(optimizer, init_lr, current_iter, max_iter)
 
     for batch_idx, (inputs, targets) in loop:
         inputs, targets = inputs.to(device), targets.to(device)
