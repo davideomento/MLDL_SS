@@ -156,7 +156,7 @@ max_iter = num_epochs* len(train_dataloader)
 # =====================
 # Training & Validation
 # =====================
-def train(epoch, model, train_loader, criterion, optimizer, lr):
+def train(epoch, model, train_loader, criterion, optimizer, init_lr):
     model.train()
     running_loss = 0.0
     batch_idx = 0
