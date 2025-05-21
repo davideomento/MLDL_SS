@@ -119,7 +119,7 @@ class_weights = torch.tensor([
 criterion = nn.CrossEntropyLoss(weights = class_weights, ignore_index=255)
 optimizer = optim.SGD(model.optim_parameters(lr=0.001), momentum=0.9, weight_decay=0.0005)
 num_epochs = 50
-max_iter = num_epochs
+max_iter = num_epochs * len(train_loader)
 
 # =====================
 # Train / Validate
