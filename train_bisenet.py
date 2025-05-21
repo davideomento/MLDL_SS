@@ -159,6 +159,7 @@ max_iter = num_epochs* len(train_dataloader)
 def train(epoch, model, train_loader, criterion, optimizer, init_lr):
     model.train()
     running_loss = 0.0
+    batch_idx = 0
     loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}")
     current_iter = epoch * len(train_loader) + batch_idx
     poly_lr_scheduler(optimizer, init_lr, current_iter, max_iter)
