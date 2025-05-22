@@ -8,19 +8,14 @@ import matplotlib.pyplot as plt
 from models.deeplabv2.deeplabv2 import get_deeplab_v2
 import os
 from models.bisenet.build_bisenet import BiSeNet
+import wandb
 
 # ================================
 # Ambiente (Colab)
 # ================================
-is_colab = 'COLAB_GPU' in os.environ
 
-if is_colab:
-    print("📍 Ambiente: Colab")
-    pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
-
-else:
-    print("📍 Ambiente: Locale")
-    pretrain_model_path = './deeplabv2_weights.pth'
+print("📍 Ambiente: Colab")
+pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
 
 
 model_deeplab = get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path=pretrain_model_path)
@@ -68,9 +63,9 @@ def calculate_iou(predicted, target, num_classes, ignore_index=255):
 def benchmark_model(model: torch.nn.Module,
                     image_size: tuple = (3, 512, 1024),
                     iterations: int = 200,
-                    device: str = 'cuda') -> pd.DataFrame:
+                    device: str = 'cuda') -> dict:
     """
-    Esegue il benchmark del modello: ritorna un DataFrame con latenza e FPS per immagine.
+    Esegue il benchmark del modello: ritorna un dizionario con latenza, FPS, FLOPs e num_parametri.
     """
     model = model.to(device).eval()
     dummy_input = torch.randn((1, *image_size), device=device)
@@ -79,21 +74,66 @@ def benchmark_model(model: torch.nn.Module,
     with torch.no_grad():
         for _ in range(50):
             _ = model(dummy_input)
-        if device.type == 'cuda':
+        if device == 'cuda' or (hasattr(device, 'type') and device.type == 'cuda'):
             torch.cuda.synchronize()
 
-    # Benchmark
+    # Benchmark latenza e FPS
     records = []
     with torch.no_grad():
         for i in range(iterations):
             start = time.time()
             _ = model(dummy_input)
-            if device.type == 'cuda':
+            if device == 'cuda' or (hasattr(device, 'type') and device.type == 'cuda'):
                 torch.cuda.synchronize()
             end = time.time()
 
             latency = end - start
             fps = 1.0 / latency
-            records.append({'iteration': i + 1, 'latency_s': latency, 'fps': fps})
+            records.append({'latency_s': latency, 'fps': fps})
 
-    return pd.DataFrame.from_records(records)
+    df_bench = pd.DataFrame.from_records(records)
+    mean_latency = df_bench['latency_s'].mean()
+    mean_fps = df_bench['fps'].mean()
+
+    # FLOPs e parametri con fvcore
+    # Passa l'input senza batch dimension per FlopCountAnalysis
+    flop_analyzer = FlopCountAnalysis(model, dummy_input)
+    total_flops = flop_analyzer.total()  # numero di FLOPs
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+    return {
+        'mean_latency': mean_latency,
+        'mean_fps': mean_fps,
+        'num_flops': total_flops,
+        'trainable_params': num_params
+    }
+
+#Function to save the metrics on WandB
+def save_metrics_on_wandb(epoch, metrics_train, metrics_val):
+
+    to_serialize = {
+        "epoch": epoch,
+        "train_loss": metrics_train,
+        "val_mIoU": metrics_val['miou'],
+        "val_loss": metrics_val['loss'],
+        "val_accuracy":metrics_val['accuracy']
+    }
+    #"val_IoU_per_class": metrics_val['iou_per_class']
+    for index, iou in enumerate(metrics_val['iou_per_class']):
+        to_serialize[f"class_{index}_val"] = iou
+
+    # Log delle metriche di training e validazione su WandB
+    if epoch != 50:
+        wandb.log(to_serialize)
+
+    # Salvataggio delle metriche finali al 50esimo epoch
+    if epoch == 50:
+        wandb.log({
+            "train_loss_final": metrics_train,
+            "val_IoU_final": metrics_val['miou'],
+            "val_loss_final": metrics_val['loss'],
+            "val_latency": metrics_val['mean_latency'],
+            "val_fps": metrics_val['mean_fps'],
+            "val_flops": metrics_val['num_flops'],
+            "val_params": metrics_val['trainable_params']
+        })
