@@ -148,7 +148,7 @@ class_weights = torch.tensor([
 
 criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
 #dice_loss = DiceLoss(to_onehot_y=True, softmax=True)
-optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-4, momentum=0.9)
+optimizer = torch.optim.SGD(model.parameters(), lr=2.5e-2, weight_decay=1e-4, momentum=0.9)
 
 num_epochs = 50
 max_iter = num_epochs
@@ -333,7 +333,7 @@ def main():
     save_every = 1
     best_miou = 0
     start_epoch = 1
-    init_lr = 1e-3
+    init_lr = 2.5e-2
 
     # Dati per il salvataggio delle metriche
     csv_path = os.path.join(save_dir, 'metrics.csv')

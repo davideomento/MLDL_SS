@@ -16,9 +16,8 @@ def build_gta5_to_cityscapes_mapping():
 
 
 class GTA5(Dataset):
-    def __init__(self, root_dir, split='train', transform=None, target_transform=None):
+    def __init__(self, root_dir, transform=None, target_transform=None):
         self.root_dir = root_dir
-        self.split = split
         self.transform = transform
         self.target_transform = target_transform
         self.id_mapping = build_gta5_to_cityscapes_mapping()
@@ -32,7 +31,7 @@ class GTA5(Dataset):
         for file_name in os.listdir(self.image_dir):
             if file_name.endswith('.png'):
                 self.image_paths.append(os.path.join(self.image_dir, file_name))
-                label_file = file_name.replace('.png', '_label.png')
+                label_file = file_name
                 self.label_paths.append(os.path.join(self.label_dir, label_file))
 
     def __len__(self):
@@ -51,7 +50,7 @@ class GTA5(Dataset):
         if self.transform:
             img = self.transform(img)
 
-        label = F.resize(label, (720, 1280), interpolation=F.InterpolationMode.NEAREST)
+        #label = F.resize(label, (720, 1280), interpolation=F.InterpolationMode.NEAREST)
         label_tensor = F.pil_to_tensor(label).squeeze(0).long()
         label_tensor = self._map_labels(label_tensor)
         if self.target_transform:
