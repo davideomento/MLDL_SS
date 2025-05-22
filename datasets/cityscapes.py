@@ -52,4 +52,3 @@ class CityScapes(Dataset):
             mask = self.target_transform(mask)
 
         return img, mask
-
