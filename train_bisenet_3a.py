@@ -40,7 +40,7 @@ set_seed(42)
 # =====================
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
-data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
+data_dir = '/content/MLDL_SS/GTA5'
 save_dir = os.path.join(base_path, 'checkpoints_3a')
 os.makedirs(save_dir, exist_ok=True)
 
@@ -49,7 +49,7 @@ os.makedirs(save_dir, exist_ok=True)
 # Label Transform
 # =====================
 class LabelTransform():
-    def __init__(self, size=(512, 1024)):
+    def __init__(self, size):
         self.size = size
 
     def __call__(self, mask):
@@ -116,20 +116,21 @@ def get_transforms():
 # Dataset & Dataloader
 # =====================
 transforms_dict = get_transforms()
-label_transform = LabelTransform()
+label_transform_train = LabelTransform(size=(720, 1280))
+label_transform_val = LabelTransform(size=(512, 1024))
 
 train_dataset = GTA5(
     root_dir=data_dir,
     split='train',
     transform=transforms_dict['train'],
-    target_transform=LabelTransform()
+    target_transform=label_transform_train
 )
 
 val_dataset = CityScapes(
     root_dir=data_dir,
     split='val',
     transform=transforms_dict['val'],
-    target_transform=label_transform
+    target_transform=label_transform_val
 )
 
 train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=2)

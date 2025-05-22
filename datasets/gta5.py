@@ -16,14 +16,15 @@ def build_gta5_to_cityscapes_mapping():
 
 
 class GTA5(Dataset):
-    def __init__(self, root_dir, split='train', transform=None):
+    def __init__(self, root_dir, split='train', transform=None, target_transform=None):
         self.root_dir = root_dir
         self.split = split
         self.transform = transform
+        self.target_transform = target_transform
         self.id_mapping = build_gta5_to_cityscapes_mapping()
 
-        self.image_dir = os.path.join(root_dir, 'images', split)
-        self.label_dir = os.path.join(root_dir, 'labels', split)
+        self.image_dir = os.path.join(root_dir, 'images') #NOTA BENE SENZA SPLIT perchè gta non ha la suddivisione
+        self.label_dir = os.path.join(root_dir, 'labels')
 
         self.image_paths = []
         self.label_paths = []
@@ -42,7 +43,7 @@ class GTA5(Dataset):
         for gta_id, cityscapes_id in self.id_mapping.items():
             mapped[label_tensor == gta_id] = cityscapes_id
         return mapped
-
+    
     def __getitem__(self, idx):
         img = Image.open(self.image_paths[idx]).convert("RGB")
         label = Image.open(self.label_paths[idx])
@@ -50,8 +51,10 @@ class GTA5(Dataset):
         if self.transform:
             img = self.transform(img)
 
-        label = F.resize(label, (512, 1024), interpolation=F.InterpolationMode.NEAREST)
+        label = F.resize(label, (720, 1280), interpolation=F.InterpolationMode.NEAREST)
         label_tensor = F.pil_to_tensor(label).squeeze(0).long()
         label_tensor = self._map_labels(label_tensor)
-
+        if self.target_transform:
+            label_tensor = self.target_transform(label_tensor)
+            
         return img, label_tensor
