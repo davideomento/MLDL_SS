@@ -335,7 +335,7 @@ def main():
 
     for epoch in range(start_epoch, num_epochs + 1):
             # 🔹 Wandb project name dinamico in base al modello
-        project_name = f"{var_model}_lr_0.00625_0.6ce_0.2ls_0.2tv"
+        project_name = f"{var_model}provadeeplab"
         wandb.init(project=project_name,
                 entity="mldl-semseg-politecnico-di-torino",
                 name=f"epoch_{epoch}",
@@ -391,7 +391,7 @@ def main():
             df.to_csv(csv_path, index=False)
             print(f"📊 Metriche aggiornate in {csv_path}")
         save_metrics_on_wandb(epoch, train_loss, val_metrics)
-    
+
     # Al termine dell'addestramento, carica il miglior modello e valida di nuovo
     model.load_state_dict(torch.load(best_model_path))
     validate(model, val_dataloader, criterion)
