@@ -12,6 +12,7 @@ import wandb
 from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from torch.utils.data import Subset
 
 
 #from monai.losses import DiceLoss
@@ -41,8 +42,6 @@ print("📍 Ambiente: Colab")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
 pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
-
-
 save_dir = os.path.join(base_path, 'checkpoints_deeplabv2')
 os.makedirs(save_dir, exist_ok=True)
 
@@ -98,8 +97,19 @@ val_dataset = CityScapes(
     target_transform=label_transform
 )
 
-train_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=2)
-val_dataloader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=2)
+
+dataset_train_size = len(train_dataset)
+subset_train_size = int(0.1 * dataset_train_size)
+random_indices = np.random.permutation(dataset_train_size)[:subset_train_size]
+train_subset = Subset(train_dataset, random_indices)
+
+dataset_val_size = len(val_dataset)
+subset_val_size = int(0.1 * dataset_val_size)
+random_indices = np.random.permutation(dataset_val_size)[:subset_val_size]
+val_subset = Subset(val_dataset, random_indices)
+
+train_dataloader = DataLoader(train_subset, batch_size=2, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_subset, batch_size=2, shuffle=False, num_workers=2)
 
 # =====================
 # Model, Loss, Optimizer
@@ -112,39 +122,15 @@ model = get_deeplab_v2(
     pretrain_model_path=pretrain_model_path
 ).to(device)
 
-def calculate_class_weights(dataset, num_classes=19, ignore_index=255):
-    class_counts = np.zeros(num_classes)
-
-    for _, target in dataset:
-        target_np = target.numpy()
-        target_np = target_np[target_np != ignore_index]  # ignora i pixel da ignorare
-
-        unique, counts = np.unique(target_np, return_counts=True)
-        for cls, count in zip(unique, counts):
-            class_counts[cls] += count
-
-    total_count = np.sum(class_counts)
-    class_weights = total_count / (num_classes * class_counts)
-    class_weights = class_weights / np.sum(class_weights)  # normalizza i pesi
-
-    return class_weights
-
-
-# Calcolo pesi e conversione in tensor su device
-class_weights_np = calculate_class_weights(train_dataset)
-class_weights = torch.tensor(class_weights_np, dtype=torch.float).to(device)
-
-
-
-'''class_weights = torch.tensor([
+class_weights = torch.tensor([
     2.6, 6.9, 3.5, 3.6, 3.6, 3.8, 3.4, 3.5, 5.1, 4.7,
     6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
-], dtype=torch.float).to(device)'''
+], dtype=torch.float).to(device)
 
-criterion = nn.CrossEntropyLoss(weight = class_weights , ignore_index=255)
-optimizer = optim.SGD(model.optim_parameters(lr=0.001), momentum=0.9, weight_decay=0.0005)
+criterion = nn.CrossEntropyLoss(weight = class_weights, ignore_index=255)
+optimizer = optim.SGD(model.optim_parameters(lr=1e-3), momentum=0.9, weight_decay=0.0005)
 num_epochs = 50
-max_iter = num_epochs * len(train_dataloader)
+max_iter = num_epochs* len(train_dataloader)
 
 # =====================
 # Train / Validate
@@ -161,23 +147,15 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
 
         optimizer.zero_grad()
         outputs = model(inputs)
-        alpha = 1
-        if isinstance(outputs, (tuple, list)) and len(outputs) == 3:
-            main_out, aux1_out, aux2_out = outputs
-            loss = (
-                criterion(main_out, targets)
-                + alpha * criterion(aux1_out, targets)
-                + alpha * criterion(aux2_out, targets)
-            )
-        else:
-            loss = criterion(outputs, targets)
+        if isinstance(outputs, (tuple, list)):
+            outputs = outputs[0]
+        '''qua non serve alpha = 1 come per bisenet, guardare paper'''
+        loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
 
         running_loss += loss.item()
         loop.set_postfix(loss=running_loss / (batch_idx + 1))
-
-
     # ⬇️ Salvataggio modello e logging wandb dopo il training dell'epoca
     mean_loss = running_loss / len(train_loader)
     lr = optimizer.param_groups[0]['lr']  # Prende il learning rate corrente
@@ -295,12 +273,11 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
     miou = torch.nanmean(iou_per_class).item()
 
     print(f'Validation Loss: {val_loss:.6f} | Acc: {val_accuracy:.2f}% | mIoU: {miou:.4f}')
-    
     if epoch == 50:
         bench_results = benchmark_model(model)
     else:
         bench_results = {k: None for k in ['mean_latency','mean_fps','num_flops','trainable_params']}
-    
+
 
     return {
         'loss': val_loss,
@@ -310,16 +287,16 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
         'loss_values': loss_values,
         'accuracy_values': accuracy_values
         **bench_results
-
     }
 
 
 
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
-    best_model_path = os.path.join(save_dir, 'best_model_bisenet.pth')
-    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet.pth')
+    best_model_path = os.path.join(save_dir, 'best_model_deeplabv2.pth')
+    checkpoint_path = os.path.join(save_dir, 'checkpoint_deeplabv2.pth')
     var_model = "deeplabv2" 
+
     save_every = 1
     best_miou = 0
     start_epoch = 1
@@ -357,8 +334,8 @@ def main():
         print(f"✔ Ripreso da epoca {checkpoint['epoch']} con mIoU: {best_miou:.4f}")
 
     for epoch in range(start_epoch, num_epochs + 1):
-        # 🔹 Wandb project name dinamico in base al modello
-        project_name = f"{var_model}provadeeplabv2"
+            # 🔹 Wandb project name dinamico in base al modello
+        project_name = f"{var_model}_lr_0.00625_0.6ce_0.2ls_0.2tv"
         wandb.init(project=project_name,
                 entity="mldl-semseg-politecnico-di-torino",
                 name=f"epoch_{epoch}",
@@ -376,6 +353,8 @@ def main():
             model.load_state_dict(checkpoint['model_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             print(f"📦 Modello caricato da WandB: {checkpoint_path}")
+
+
         # Training
         train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
         
@@ -412,9 +391,7 @@ def main():
             df.to_csv(csv_path, index=False)
             print(f"📊 Metriche aggiornate in {csv_path}")
         save_metrics_on_wandb(epoch, train_loss, val_metrics)
-        wandb.finish()
-
-
+    
     # Al termine dell'addestramento, carica il miglior modello e valida di nuovo
     model.load_state_dict(torch.load(best_model_path))
     validate(model, val_dataloader, criterion)
