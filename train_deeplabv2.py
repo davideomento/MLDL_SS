@@ -11,6 +11,7 @@ import torchvision.transforms as transforms
 from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from torch.utils.data import Subset
 
 
 #from monai.losses import DiceLoss
@@ -97,7 +98,13 @@ val_dataset = CityScapes(
     target_transform=label_transform
 )
 
-train_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=2)
+
+dataset_size = len(train_dataset)
+subset_size = int(0.3 * dataset_size)
+random_indices = np.random.permutation(dataset_size)[:subset_size]
+train_subset = Subset(train_dataset, random_indices)
+
+train_dataloader = DataLoader(train_subset, batch_size=2, shuffle=True, num_workers=2)
 val_dataloader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=2)
 
 # =====================
