@@ -108,7 +108,7 @@ subset_val_size = int(0.5 * dataset_val_size)
 random_indices = np.random.permutation(dataset_val_size)[:subset_val_size]
 val_subset = Subset(val_dataset, random_indices)
 
-train_dataloader = DataLoader(train_subset, batcrh_size=2, shuffle=True, num_workers=2)
+train_dataloader = DataLoader(train_subset, batch_size=2, shuffle=True, num_workers=2)
 val_dataloader = DataLoader(val_subset, batch_size=2, shuffle=False, num_workers=2)
 
 # =====================
@@ -359,36 +359,6 @@ def main():
         
         # Validation and Metrics
         val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
-        
-        # Registriamo i dati per il salvataggio
-        metrics_data['epoch'].append(epoch)
-        metrics_data['train_loss'].append(train_loss)
-        metrics_data['val_loss'].append(val_metrics['loss'])
-        metrics_data['val_accuracy'].append(val_metrics['accuracy'])
-        metrics_data['miou'].append(val_metrics['miou'])
-
-        # Salvataggio del modello migliore
-        if val_metrics['miou'] > best_miou:
-            best_miou = val_metrics['miou']
-            torch.save(model.state_dict(), best_model_path)
-            print(f"✅ Best model salvato con mIoU: {val_metrics['miou']:.4f}")
-
-        if epoch % save_every == 0:
-            checkpoint = {
-                'epoch': epoch,
-                'model_state': model.state_dict(),
-                'optimizer_state': optimizer.state_dict(),
-                'best_miou': best_miou
-            }
-            torch.save(checkpoint, checkpoint_path)
-            print(f"💾 Checkpoint salvato all’epoca {epoch}")
-            
-            # Salvataggio delle metriche su un unico CSV
-            df = pd.DataFrame(metrics_data)
-            # Prima di salvare
-
-            df.to_csv(csv_path, index=False)
-            print(f"📊 Metriche aggiornate in {csv_path}")
         save_metrics_on_wandb(epoch, train_loss, val_metrics)
 
     # Al termine dell'addestramento, carica il miglior modello e valida di nuovo
