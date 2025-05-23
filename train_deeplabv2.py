@@ -124,7 +124,7 @@ max_iter = num_epochs
 # =====================
 # Train / Validate
 # =====================
-def train(epoch, model, train_loader, criterion, optimizer, scheduler, init_lr):
+def train(epoch, model, train_loader, criterion, optimizer, init_lr):
     model.train()
     running_loss = 0.0
     loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}")
