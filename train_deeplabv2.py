@@ -265,8 +265,7 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
                 plt.savefig(f"validation_epoch_{epoch}.png")
                 plt.close()
                 wandb.log({"validation_image": wandb.Image(plt)})
-                print(f"Validation image saved for epoch {epoch}")
-
+                tqdm.write(f"Validation image saved for epoch {epoch}")
     # Calcolo delle metriche per epoca
     val_loss /= len(val_loader)
     val_accuracy = 100. * correct / total
@@ -327,9 +326,6 @@ def main():
         # Validation and Metrics
         val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
         save_metrics_on_wandb(epoch, train_loss, val_metrics)
-
-    # Al termine dell'addestramento, carica il miglior modello e valida di nuovo
-    model.load_state_dict(torch.load(best_model_path))
     validate(model, val_dataloader, criterion)
 
 

@@ -266,6 +266,7 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
             loss_values.append(loss.item())
             accuracy_values.append((predicted == targets).sum().item() / targets.numel())
 
+
             if batch_idx == 0:
                 img_tensor = inputs[0].cpu()
                 gt_vis = targets[0].cpu().numpy()
@@ -277,18 +278,17 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
                 img_np = img_dn.permute(1,2,0).numpy()
 
                 # ===> Carica immagine _color dal filesystem
-                # 1. Prendi il percorso della label
                 label_path = val_dataset.label_paths[batch_idx]
-                # 2. Costruisci path della versione _color
                 color_path = label_path.replace('_gtFine_labelTrainIds.png', '_gtFine_color.png')
                 color_img = Image.open(color_path)
 
+                # Crea figura e disegna
                 fig, axes = plt.subplots(1, 3, figsize=(18, 6))
                 axes[0].imshow(img_np)
                 axes[0].set_title("Input Image")
                 axes[0].axis('off')
 
-                axes[1].imshow(decode_segmap(gt_vis))  # usa colormap ufficiale
+                axes[1].imshow(decode_segmap(gt_vis))
                 axes[1].set_title("GT (Colored)")
                 axes[1].axis('off')
 
@@ -297,8 +297,16 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
                 axes[2].axis('off')
 
                 plt.tight_layout()
+
+                # Salva su file (facoltativo)
                 fname = f"{save_dir}/img_gt_pred_gtcolor_epoch_{epoch}.png"
                 plt.savefig(fname)
+
+                # 🔥 Logga su WandB direttamente come immagine
+                wandb.log({
+                    f"Prediction/epoch_{epoch}": wandb.Image(fig, caption=f"Epoch {epoch}")
+                })
+
                 plt.close()
 
 
