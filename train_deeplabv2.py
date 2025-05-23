@@ -116,7 +116,7 @@ class_weights = torch.tensor([
     6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
 ], dtype=torch.float).to(device)
 
-criterion = nn.CrossEntropyLoss(weights = class_weights, ignore_index=255)
+criterion = nn.CrossEntropyLoss(weight = class_weights, ignore_index=255)
 optimizer = optim.SGD(model.optim_parameters(lr=0.001), momentum=0.9, weight_decay=0.0005)
 num_epochs = 50
 max_iter = num_epochs
