@@ -149,7 +149,7 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
         outputs = model(inputs)
         if isinstance(outputs, (tuple, list)):
             outputs = outputs[0]
-        '''qua non serve alpha = 1 come per bisenet, guardare paper'''
+        '''qua non serve alpha = 1 come per bisenet?, guardare paper'''
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
@@ -262,9 +262,11 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
                 axes[2].axis('off')
 
                 plt.tight_layout()
-                plt.show()
+                plt.savefig(f"validation_epoch_{epoch}.png")
                 plt.close()
-
+                wandb.log({"validation_image": wandb.Image(plt)})
+                print(f"Validation image saved for epoch {epoch}")
+                
     # Calcolo delle metriche per epoca
     val_loss /= len(val_loader)
     val_accuracy = 100. * correct / total
@@ -295,43 +297,8 @@ def main():
     best_model_path = os.path.join(save_dir, 'best_model_deeplabv2.pth')
     checkpoint_path = os.path.join(save_dir, 'checkpoint_deeplabv2.pth')
     var_model = "deeplabv2" 
-
-    save_every = 1
-    best_miou = 0
     start_epoch = 1
     init_lr = 1e-3
-
-    # Dati per il salvataggio delle metriche
-    csv_path = os.path.join(save_dir, 'metrics.csv')
-
-    # Carica metriche precedenti se esistono
-    if os.path.exists(csv_path):
-        df = pd.read_csv(csv_path)
-        metrics_data = {
-            'epoch': df['epoch'].tolist(),
-            'train_loss': df['train_loss'].tolist(),
-            'val_loss': df['val_loss'].tolist(),
-            'val_accuracy': df['val_accuracy'].tolist(),
-            'miou': df['miou'].tolist()  
-        }
-        print("📂 Metriche precedenti caricate da metrics.csv")
-    else:
-        metrics_data = {
-            'epoch': [],
-            'train_loss': [],
-            'val_loss': [],
-            'val_accuracy': [],
-            'miou': []
-        }
-
-    if os.path.exists(checkpoint_path):
-        checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint['model_state'])
-        optimizer.load_state_dict(checkpoint['optimizer_state'])
-        best_miou = checkpoint['best_miou']
-        start_epoch = checkpoint['epoch'] + 1
-        print(f"✔ Ripreso da epoca {checkpoint['epoch']} con mIoU: {best_miou:.4f}")
-
     for epoch in range(start_epoch, num_epochs + 1):
             # 🔹 Wandb project name dinamico in base al modello
         project_name = f"{var_model}provadeeplab"
@@ -365,8 +332,6 @@ def main():
     model.load_state_dict(torch.load(best_model_path))
     validate(model, val_dataloader, criterion)
 
-    # Esegui il grafico delle metriche salvate
-    plot_metrics(metrics_data)
 
 def plot_metrics(metrics_data):
     # Funzione per plottare le metriche nel tempo
