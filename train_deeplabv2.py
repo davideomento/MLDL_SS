@@ -284,7 +284,7 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
         'miou': miou,
         'iou_per_class': iou_per_class,
         'loss_values': loss_values,
-        'accuracy_values': accuracy_values
+        'accuracy_values': accuracy_values,
         **bench_results
     }
 
