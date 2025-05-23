@@ -358,7 +358,7 @@ def main():
 
     for epoch in range(start_epoch, num_epochs + 1):
         # 🔹 Wandb project name dinamico in base al modello
-        project_name = f"{var_model}_lr_0.00625_0.6ce_0.2ls_0.2tv"
+        project_name = f"{var_model}provadeeplabv2"
         wandb.init(project=project_name,
                 entity="mldl-semseg-politecnico-di-torino",
                 name=f"epoch_{epoch}",
