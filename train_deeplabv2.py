@@ -104,11 +104,11 @@ random_indices = np.random.permutation(dataset_train_size)[:subset_train_size]
 train_subset = Subset(train_dataset, random_indices)
 
 dataset_val_size = len(val_dataset)
-subset_val_size = int(0.1 * dataset_val_size)
+subset_val_size = int(0.5 * dataset_val_size)
 random_indices = np.random.permutation(dataset_val_size)[:subset_val_size]
 val_subset = Subset(val_dataset, random_indices)
 
-train_dataloader = DataLoader(train_subset, batch_size=2, shuffle=True, num_workers=2)
+train_dataloader = DataLoader(train_subset, batcrh_size=2, shuffle=True, num_workers=2)
 val_dataloader = DataLoader(val_subset, batch_size=2, shuffle=False, num_workers=2)
 
 # =====================
