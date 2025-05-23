@@ -266,7 +266,7 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
                 plt.close()
                 wandb.log({"validation_image": wandb.Image(plt)})
                 print(f"Validation image saved for epoch {epoch}")
-                
+
     # Calcolo delle metriche per epoca
     val_loss /= len(val_loader)
     val_accuracy = 100. * correct / total
@@ -333,7 +333,7 @@ def main():
     validate(model, val_dataloader, criterion)
 
 
-def plot_metrics(metrics_data):
+'''def plot_metrics(metrics_data):
     # Funzione per plottare le metriche nel tempo
     df = pd.DataFrame(metrics_data)
 
@@ -374,7 +374,7 @@ def plot_metrics(metrics_data):
     plt.ylabel('IoU')
     plt.legend(loc='upper left')
     plt.grid(True)
-    plt.show()
+    plt.show()'''
 
 
 
