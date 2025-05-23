@@ -264,7 +264,7 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
                 plt.tight_layout()
                 plt.savefig(f"validation_epoch_{epoch}.png")
                 plt.close()
-                wandb.log({"validation_image": wandb.Image(plt)})
+                wandb.log({"validation_image": wandb.Image(fig)})
                 tqdm.write(f"Validation image saved for epoch {epoch}")
     # Calcolo delle metriche per epoca
     val_loss /= len(val_loader)
