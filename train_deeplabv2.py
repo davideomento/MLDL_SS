@@ -262,8 +262,7 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
                 axes[2].axis('off')
 
                 plt.tight_layout()
-                fname = f"{save_dir}/img_gt_pred_gtcolor_epoch_{epoch}.png"
-                plt.savefig(fname)
+                plt.show()
                 plt.close()
 
     # Calcolo delle metriche per epoca
