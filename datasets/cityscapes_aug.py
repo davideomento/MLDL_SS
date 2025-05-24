@@ -7,11 +7,10 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
 class CityScapes(Dataset):
-    def __init__(self, root_dir, split='val', transform=None, target_transform=None):
+    def __init__(self, root_dir, split='val', transform=None):
         self.root_dir = root_dir
         self.split = split
-        self.transform = transform  # Albumentations Compose
-        self.target_transform = target_transform
+        self.transform = transform  # Deve essere A.Compose(...)
 
         self.image_dir = os.path.join(root_dir, 'images', split)
         self.label_dir = os.path.join(root_dir, 'gtFine', split)
@@ -37,18 +36,17 @@ class CityScapes(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-    # Carica immagine e maschera come ndarray
+        # Carica immagine e maschera come ndarray
         img = np.array(Image.open(self.image_paths[idx]).convert("RGB"))
-        mask = np.array(Image.open(self.label_paths[idx]), dtype=np.uint8)  # già in trainId
+        mask = np.array(Image.open(self.label_paths[idx]), dtype=np.uint8)
 
-        # Applica le trasformazioni albumentations
+        # Applica Albumentations se specificato
         if self.transform:
             augmented = self.transform(image=img, mask=mask)
             img = augmented['image']
             mask = augmented['mask']
 
-        # Eventuali trasformazioni sulla maschera (es. resize, to_tensor long)
-        if self.target_transform:
-            mask = self.target_transform(mask)
+        # Garantisci che la mask sia LongTensor
+        mask = mask.long()  # È già tensor, solo cast del tipo
 
         return img, mask
