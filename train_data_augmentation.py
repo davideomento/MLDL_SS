@@ -24,7 +24,6 @@ from models.bisenet.build_contextpath import build_contextpath
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
 from utils import poly_lr_scheduler
 
-
 # =====================
 # Set Seed
 # =====================
