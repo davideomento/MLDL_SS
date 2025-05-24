@@ -37,15 +37,19 @@ class CityScapes(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
+    # Carica immagine e maschera come ndarray
         img = np.array(Image.open(self.image_paths[idx]).convert("RGB"))
-        mask = np.array(Image.open(self.label_paths[idx]), dtype=np.uint8)  # labelTrainIds
+        mask = np.array(Image.open(self.label_paths[idx]), dtype=np.uint8)  # già in trainId
 
+        # Applica le trasformazioni albumentations
         if self.transform:
             augmented = self.transform(image=img, mask=mask)
             img = augmented['image']
             mask = augmented['mask']
 
+        # Eventuali trasformazioni sulla maschera (es. resize, to_tensor long)
         if self.target_transform:
             mask = self.target_transform(mask)
 
         return img, mask
+
