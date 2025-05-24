@@ -63,12 +63,6 @@ class GTA5(Dataset):
 
     def __len__(self):
         return len(self.image_paths)
-
-    def _map_labels(self, label_tensor):
-        mapped = torch.full_like(label_tensor, 255)
-        for gta_id, cityscapes_id in self.id_mapping.items():
-            mapped[label_tensor == gta_id] = cityscapes_id
-        return mapped
     
     def __getitem__(self, idx):
         img = Image.open(self.image_paths[idx]).convert("RGB")
@@ -80,7 +74,6 @@ class GTA5(Dataset):
             img = img_transform(img)
 
         label_tensor = F.pil_to_tensor(label).squeeze(0).long()
-        label_tensor = self._map_labels(label_tensor)
 
         if self.target_transform:
             label_tensor = self.target_transform(label_tensor)
