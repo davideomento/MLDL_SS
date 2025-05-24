@@ -11,7 +11,7 @@ import wandb
 from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from datasets.gta5 import GTA5
+from datasets.gta5 import *
 import torch.nn.functional as nnF
 
 
@@ -73,6 +73,7 @@ img_transform_gta = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
+
 img_transform_cs = transforms.Compose([
     transforms.Resize((512, 1024)),  # Resize fisso
     transforms.ToTensor(),
@@ -80,8 +81,13 @@ img_transform_cs = transforms.Compose([
                          std=(0.229, 0.224, 0.225))
 ])
 
-def mask_transform_gta5(mask):
-    return F.resize(mask, (720, 1280), interpolation=F.InterpolationMode.NEAREST)
+def mask_transform_gta5():
+    transform = transforms.Compose([
+        transforms.Resize((720, 1280), interpolation=Image.NEAREST),
+        transforms.Lambda(lambda mask: to_tensor_no_normalization(mask)),
+        transforms.Lambda(transform_gta_to_cityscapes_label)
+    ])
+    return transform
 
 # Trasformazione per la mask (solo resize, no toTensor, no normalize)
 def mask_transform_cs(mask):
@@ -89,46 +95,16 @@ def mask_transform_cs(mask):
 
 def get_transforms():
     return {
-        'train': (img_transform_gta, mask_transform_gta5),
+        'train': (img_transform_gta, mask_transform_gta5()),
         'val': (img_transform_cs, mask_transform_cs)
     }
     
-'''
-def get_transforms():
-    train_transform = A.Compose([
-        A.OneOf([
-            A.Resize(height=int(512 * s), width=int(1024 * s))
-            for s in [0.75, 1.0, 1.5, 1.75, 2.0]
-        ], p=1.0),
-        
-        A.PadIfNeeded(min_height=512, min_width=1024, border_mode=0),  # padding se resize più piccola
-        A.RandomCrop(height=512, width=1024),  # crop fisso
-        A.HorizontalFlip(p=0.5),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ToTensorV2()
-    ])
-
-    val_transform = A.Compose([
-        A.Resize(512, 1024),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ToTensorV2()
-    ])
-
-    return {
-        'train': train_transform,
-        'val': val_transform
-    }'''
-
-
-
-
-
 
 # =====================
 # Dataset & Dataloader
 # =====================
 transforms_dict = get_transforms()
-label_transform_train = LabelTransform(size=(720, 1280))
+label_transform_train = mask_transform_gta5()
 label_transform_val = LabelTransform(size=(512, 1024))
 
 img_transform, _ = transforms_dict['train']  

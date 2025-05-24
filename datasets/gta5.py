@@ -6,6 +6,33 @@ import torchvision.transforms as transforms
 from datasets.gta5_labels import GTA5Labels_TaskCV2017
 from torchvision.transforms import functional as F
 
+def to_tensor_no_normalization(pic):
+    """
+    Converte un'immagine PIL (o ndarray) in un tensore torch senza normalizzazione.
+    Utile per trasformare maschere di segmentazione con etichette discrete.
+    """
+    if isinstance(pic, torch.Tensor):
+        return pic.long()
+    if isinstance(pic, Image.Image):
+        return F.pil_to_tensor(pic).squeeze(0).long()
+    raise TypeError(f"Input non supportato per to_tensor_no_normalization: {type(pic)}")
+
+
+def transform_gta_to_cityscapes_label(mask):
+    """
+    Mappa gli ID delle classi GTA5 a quelli di Cityscapes.
+    Le etichette non mappate sono settate a 255 (ignore index).
+    """
+    id_to_trainid = {
+        7: 0, 8: 1, 11: 2, 12: 3, 13: 4, 17: 5, 19: 6, 20: 7, 21: 8,
+        22: 9, 23: 10, 24: 11, 25: 12, 26: 13, 27: 14, 28: 15,
+        31: 16, 32: 17, 33: 18
+    }
+    mapped = torch.full_like(mask, 255)
+    for gta_id, train_id in id_to_trainid.items():
+        mapped[mask == gta_id] = train_id
+    return mapped
+
 
 def build_gta5_to_cityscapes_mapping():
     gta_labels = GTA5Labels_TaskCV2017()
