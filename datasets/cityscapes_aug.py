@@ -7,10 +7,10 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
 class CityScapes(Dataset):
-    def __init__(self, root_dir, split='train', transform=None, target_transform=None):
+    def __init__(self, root_dir, split='val', transform=None, target_transform=None):
         self.root_dir = root_dir
         self.split = split
-        self.transform = transform  # Deve essere un albumentations.Compose
+        self.transform = transform  # Albumentations Compose
         self.target_transform = target_transform
 
         self.image_dir = os.path.join(root_dir, 'images', split)
@@ -38,16 +38,12 @@ class CityScapes(Dataset):
 
     def __getitem__(self, idx):
         img = np.array(Image.open(self.image_paths[idx]).convert("RGB"))
-        mask = np.array(Image.open(self.label_paths[idx]))  # È già in labelTrainIds (uint8)
+        mask = np.array(Image.open(self.label_paths[idx]), dtype=np.uint8)  # labelTrainIds
 
         if self.transform:
             augmented = self.transform(image=img, mask=mask)
             img = augmented['image']
             mask = augmented['mask']
-        else:
-            # Default conversion se non definita
-            img = torch.from_numpy(img).permute(2, 0, 1).float() / 255.
-            mask = torch.from_numpy(mask).long()
 
         if self.target_transform:
             mask = self.target_transform(mask)
