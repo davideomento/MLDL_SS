@@ -11,17 +11,18 @@ import wandb
 from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from datasets.gta5 import *
+from datasets.gta5_aug import *
 import torch.nn.functional as nnF
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
 
 #from monai.losses import DiceLoss
-from datasets.cityscapes import CityScapes
+from datasets.cityscapes_aug import CityScapes
 from models.bisenet.build_bisenet import BiSeNet
 from models.bisenet.build_contextpath import build_contextpath
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
 from utils import poly_lr_scheduler
-
 
 # =====================
 # Set Seed
@@ -43,7 +44,7 @@ print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir_train = '/content/MLDL_SS/GTA5'
 data_dir_val = '/content/MLDL_SS/Cityscapes/Cityspaces'    
-save_dir = os.path.join(base_path, 'checkpoints_3a')
+save_dir = os.path.join(base_path, 'checkpoints_augmentation')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -69,29 +70,32 @@ class LabelTransform:
         return mask
 
 
-###############
 
-# Trasformazione per l'immagine
-img_transform_gta = transforms.Compose([
-            transforms.Resize((720, 1280)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
 
-img_transform_cs = transforms.Compose([
-    transforms.Resize((512, 1024)),  # Resize fisso
-    transforms.ToTensor(),
-    transforms.Normalize(mean=(0.485, 0.456, 0.406),
-                         std=(0.229, 0.224, 0.225))
-])
-
+# Trasformazione per l'immagine    
 def get_transforms():
+    img_transform_gta = A.Compose([
+        A.Resize(720, 1280),
+        A.HorizontalFlip(p=0.5),
+        A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5),
+        A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0), p=0.5),
+        A.Normalize(mean=[0.485, 0.456, 0.406], 
+                    std=[0.229, 0.224, 0.225]),
+        ToTensorV2()
+    ])
+
+    img_transform_cs = A.Compose([
+        A.Resize(512, 1024),
+        A.Normalize(mean=[0.485, 0.456, 0.406], 
+                    std=[0.229, 0.224, 0.225]),
+        ToTensorV2()
+    ])
+
     return {
         'train': (img_transform_gta, lambda mask: mask),  # Dummy mask_transform, serve per compatibilità
         'val': (img_transform_cs, lambda mask: mask)
     }
 
-    
 
 # =====================
 # Dataset & Dataloader
@@ -114,8 +118,8 @@ val_dataset = CityScapes(
     target_transform=label_transform_val
 )
 
-train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=2)
-val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)
+train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_workers=2)
 
 # =====================
 # Model Setup
