@@ -2,9 +2,10 @@ import os
 from PIL import Image
 import torch
 from torch.utils.data import Dataset
-import torchvision.transforms as transforms
+import numpy as np
 from datasets.gta5_labels import GTA5Labels_TaskCV2017
 from torchvision.transforms import functional as F
+import albumentations as A
 
 def to_tensor_no_normalization(pic):
     """
