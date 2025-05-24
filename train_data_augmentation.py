@@ -114,8 +114,7 @@ train_dataset = GTA5(
 val_dataset = CityScapes(
     root_dir=data_dir_val,
     split='val',
-    transform=transforms_dict['val'],
-    target_transform=label_transform_val
+    transform=transforms_dict['val']
 )
 
 train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=2)
