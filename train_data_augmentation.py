@@ -118,8 +118,8 @@ val_dataset = CityScapes(
     target_transform=label_transform_val
 )
 
-train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=2)
-val_dataloader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_workers=2)
+train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)
 
 # =====================
 # Model Setup
