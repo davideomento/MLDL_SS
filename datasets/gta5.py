@@ -74,13 +74,15 @@ class GTA5(Dataset):
         img = Image.open(self.image_paths[idx]).convert("RGB")
         label = Image.open(self.label_paths[idx])
 
+        # Se self.transform è una tupla (img_transform, mask_transform)
         if self.transform:
-            img = self.transform(img)
+            img_transform, _ = self.transform
+            img = img_transform(img)
 
-        #label = F.resize(label, (720, 1280), interpolation=F.InterpolationMode.NEAREST)
         label_tensor = F.pil_to_tensor(label).squeeze(0).long()
         label_tensor = self._map_labels(label_tensor)
+
         if self.target_transform:
             label_tensor = self.target_transform(label_tensor)
-            
+
         return img, label_tensor
