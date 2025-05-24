@@ -56,14 +56,18 @@ class LabelTransform:
         self.id_conversion = id_conversion
 
     def __call__(self, mask):
-        # mask: torch.Tensor (H, W)
+        # mask: torch.Tensor (H, W) o PIL.Image se ancora non convertita
+        if not isinstance(mask, torch.Tensor):
+            mask = to_tensor_no_normalization(mask)
+
         if self.id_conversion:
             mask = transform_gta_to_cityscapes_label(mask)  # solo per GTA5
 
-        mask = mask.unsqueeze(0).unsqueeze(0).float()
+        mask = mask.unsqueeze(0).unsqueeze(0).float()  # shape (1,1,H,W)
         mask = nnF.interpolate(mask, size=self.size, mode='nearest')
         mask = mask.squeeze().long()
         return mask
+
 
 ###############
 
@@ -83,9 +87,10 @@ img_transform_cs = transforms.Compose([
 
 def get_transforms():
     return {
-        'train': img_transform_gta,
-        'val': img_transform_cs
+        'train': (img_transform_gta, lambda mask: mask),  # Dummy mask_transform, serve per compatibilità
+        'val': (img_transform_cs, lambda mask: mask)
     }
+
     
 
 # =====================
