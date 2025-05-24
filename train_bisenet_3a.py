@@ -50,17 +50,17 @@ os.makedirs(save_dir, exist_ok=True)
 # =====================
 # Label Transform
 # =====================
-class LabelTransform():
-    def __init__(self, size):
+class LabelTransform:
+    def __init__(self, size, id_conversion=True):
         self.size = size
+        self.id_conversion = id_conversion
 
-    '''def __call__(self, mask):
-        mask = F.resize(mask, self.size, interpolation=Image.NEAREST)
-        return torch.as_tensor(mask, dtype=torch.long)       '''   
-    
     def __call__(self, mask):
-    # mask è tensor Long di dimensione (H, W)
-        mask = mask.unsqueeze(0).unsqueeze(0).float()  # shape (1,1,H,W)
+        # mask: torch.Tensor (H, W)
+        if self.id_conversion:
+            mask = transform_gta_to_cityscapes_label(mask)  # solo per GTA5
+
+        mask = mask.unsqueeze(0).unsqueeze(0).float()
         mask = nnF.interpolate(mask, size=self.size, mode='nearest')
         mask = mask.squeeze().long()
         return mask
@@ -81,22 +81,10 @@ img_transform_cs = transforms.Compose([
                          std=(0.229, 0.224, 0.225))
 ])
 
-def mask_transform_gta5():
-    transform = transforms.Compose([
-        transforms.Resize((720, 1280), interpolation=Image.NEAREST),
-        transforms.Lambda(lambda mask: to_tensor_no_normalization(mask)),
-        transforms.Lambda(transform_gta_to_cityscapes_label)
-    ])
-    return transform
-
-# Trasformazione per la mask (solo resize, no toTensor, no normalize)
-def mask_transform_cs(mask):
-    return F.resize(mask, (512, 1024), interpolation=F.InterpolationMode.NEAREST)
-
 def get_transforms():
     return {
-        'train': (img_transform_gta, mask_transform_gta5()),
-        'val': (img_transform_cs, mask_transform_cs)
+        'train': img_transform_gta,
+        'val': img_transform_cs
     }
     
 
@@ -104,13 +92,12 @@ def get_transforms():
 # Dataset & Dataloader
 # =====================
 transforms_dict = get_transforms()
-label_transform_train = mask_transform_gta5()
-label_transform_val = LabelTransform(size=(512, 1024))
+label_transform_train = LabelTransform(size=(720, 1280), id_conversion=True)  # GTA5
+label_transform_val   = LabelTransform(size=(512, 1024), id_conversion=False)  # Cityscapes
 
-img_transform, _ = transforms_dict['train']  
 train_dataset = GTA5(
     root_dir=data_dir_train,
-    transform=img_transform,
+    transform=transforms_dict['train'] ,
     target_transform=label_transform_train
 )
 
