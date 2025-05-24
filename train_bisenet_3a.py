@@ -97,7 +97,7 @@ def get_transforms():
 # Dataset & Dataloader
 # =====================
 transforms_dict = get_transforms()
-label_transform_train = LabelTransform(size=(720, 1280), id_conversion=True)  # GTA5
+label_transform_train = LabelTransform(size=(720, 1280), id_conversion=False)  # GTA5
 label_transform_val   = LabelTransform(size=(512, 1024), id_conversion=False)  # Cityscapes
 
 train_dataset = GTA5(
