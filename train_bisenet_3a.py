@@ -354,27 +354,16 @@ def main():
         start_epoch = checkpoint['epoch'] + 1
         print(f"✔ Ripreso da epoca {checkpoint['epoch']} con mIoU: {best_miou:.4f}")
 
+    #wandb 
+    project_name = f"{var_model}_3a_official"
+
     for epoch in range(start_epoch, num_epochs + 1):
         # 🔹 Wandb project name dinamico in base al modello
-        project_name = f"{var_model}_lr_0.00625_0.6ce_0.2ls_0.2tv"
         wandb.init(project=project_name,
                 entity="mldl-semseg-politecnico-di-torino",
                 name=f"epoch_{epoch}",
                 reinit=True)  # Inizializza wandb per questa epoca
         print("🛰️ Wandb inizializzato")
-
-        # 🔹 Se non è la prima epoca, carica il modello precedente da wandb
-        if epoch != 1:
-            path_last_model = f"{project_name}/model_epoch_{epoch-1}:latest"
-            artifact = wandb.use_artifact(path_last_model, type="model")
-            artifact_dir = artifact.download()
-            checkpoint_path = os.path.join(artifact_dir, f"model_epoch_{epoch-1}.pt")
-            checkpoint = torch.load(checkpoint_path)
-
-            model.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            print(f"📦 Modello caricato da WandB: {checkpoint_path}")
-
 
         # Training
         train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
