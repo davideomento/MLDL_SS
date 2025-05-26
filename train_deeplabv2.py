@@ -323,11 +323,11 @@ def main():
             path_last_model = f"{project_name}/model_epoch_{epoch-1}:latest"
             artifact = wandb.use_artifact(path_last_model, type="model")
             artifact_dir = artifact.download()
-            checkpoint_path = os.path.join(artifact_dir, f"model_epoch_{epoch-1}.pt")
-            checkpoint = torch.load(checkpoint_path)
+            checkpoint_path_wandb = os.path.join(artifact_dir, f"model_epoch_{epoch-1}.pt")
+            checkpoint = torch.load(checkpoint_path_wandb)
             model.load_state_dict(checkpoint['model_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            print(f"📦 Modello caricato da WandB: {checkpoint_path}")
+            print(f"📦 Modello caricato da WandB: {checkpoint_path_wandb}")
 
         # Training
         train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
@@ -335,9 +335,20 @@ def main():
         # Validation and Metrics
         val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
         save_metrics_on_wandb(epoch, train_loss, val_metrics)
+
+        # 🔹 Salva il checkpoint localmente
+        checkpoint_data = {
+            'model_state': model.state_dict(),
+            'optimizer_state': optimizer.state_dict(),
+            'epoch': epoch,
+            'best_miou': val_metrics['mIoU'],
+        }
+        torch.save(checkpoint_data, checkpoint_path)
+        print(f"💾 Checkpoint salvato a {checkpoint_path}")
     
     # Validazione finale
     validate(model, val_dataloader, criterion)
+
 
 
 
