@@ -303,6 +303,8 @@ def main():
         best_miou = checkpoint['best_miou']
         start_epoch = checkpoint['epoch'] + 1
         print(f"✔ Ripreso da epoca {checkpoint['epoch']} con mIoU: {best_miou:.4f}")
+    else:
+        start_epoch = 1
     for epoch in range(start_epoch, num_epochs + 1):
     # 🔹 Wandb project name dinamico in base al modello
         project_name = f"{var_model}provadeeplab"
