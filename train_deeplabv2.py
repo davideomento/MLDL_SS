@@ -289,44 +289,55 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
         **bench_results
     }
 
+def get_latest_wandb_epoch(project_name: str, entity: str):
+    import wandb
+    api = wandb.Api()
+    runs = api.runs(f"{entity}/{project_name}")
+    max_epoch = 0
+    for run in runs:
+        for artifact in run.logged_artifacts():
+            if artifact.type == "model" and "model_epoch_" in artifact.name:
+                try:
+                    epoch_num = int(artifact.name.split("model_epoch_")[-1])
+                    if epoch_num > max_epoch:
+                        max_epoch = epoch_num
+                except ValueError:
+                    continue
+    return max_epoch
 
-
-# Modificare la funzione main per raccogliere e salvare i dati
 def main():
-    best_model_path = os.path.join(save_dir, 'best_model_deeplabv2.pth')
-    checkpoint_path = os.path.join(save_dir, 'checkpoint_deeplabv2.pth')
-    var_model = "deeplabv2" 
-    start_epoch = 1
-    init_lr = 1e-3
-    for epoch in range(start_epoch, num_epochs + 1):
-            # 🔹 Wandb project name dinamico in base al modello
-        project_name = f"{var_model}provadeeplab"
-        wandb.init(project=project_name,
-                entity="mldl-semseg-politecnico-di-torino",
-                name=f"epoch_{epoch}",
-                reinit=True)  # Inizializza wandb per questa epoca
-        print("🛰️ Wandb inizializzato")
+    var_model = "deeplabv2"
+    project_name = f"{var_model}provadeeplab"
+    entity = "mldl-semseg-politecnico-di-torino"
 
-        # 🔹 Se non è la prima epoca, carica il modello precedente da wandb
+    # 🔍 Cerca l'ultima epoca salvata su wandb
+    start_epoch = get_latest_wandb_epoch(project_name, entity) + 1
+    print(f"🔁 Ripartenza da epoca {start_epoch}")
+
+    for epoch in range(start_epoch, num_epochs + 1):
+        wandb.init(project=project_name,
+                   entity=entity,
+                   name=f"epoch_{epoch}",
+                   reinit=True)
+
+        # Carica il modello precedente da wandb solo se non è la prima epoca
         if epoch != 1:
-            path_last_model = f"{project_name}/model_epoch_{epoch-1}:latest"
-            artifact = wandb.use_artifact(path_last_model, type="model")
+            artifact_path = f"{project_name}/model_epoch_{epoch-1}:latest"
+            artifact = wandb.use_artifact(artifact_path, type="model")
             artifact_dir = artifact.download()
             checkpoint_path = os.path.join(artifact_dir, f"model_epoch_{epoch-1}.pt")
             checkpoint = torch.load(checkpoint_path)
 
             model.load_state_dict(checkpoint['model_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            print(f"📦 Modello caricato da WandB: {checkpoint_path}")
-
+            print(f"📦 Caricato model_epoch_{epoch-1}.pt da WandB")
 
         # Training
         train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
-        
-        # Validation and Metrics
+
+        # Validation
         val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
         save_metrics_on_wandb(epoch, train_loss, val_metrics)
-    validate(model, val_dataloader, criterion)
 
 
 '''def plot_metrics(metrics_data):
