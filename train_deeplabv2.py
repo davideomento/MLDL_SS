@@ -318,16 +318,6 @@ def main():
     print("🛰️ Wandb inizializzato")
 
     for epoch in range(start_epoch, num_epochs + 1):
-        # 🔹 Se non è la prima epoca, carica modello precedente da WandB
-        if epoch != 1:
-            path_last_model = f"{project_name}/model_epoch_{epoch-1}:latest"
-            artifact = wandb.use_artifact(path_last_model, type="model")
-            artifact_dir = artifact.download()
-            checkpoint_path_wandb = os.path.join(artifact_dir, f"model_epoch_{epoch-1}.pt")
-            checkpoint = torch.load(checkpoint_path_wandb)
-            model.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            print(f"📦 Modello caricato da WandB: {checkpoint_path_wandb}")
 
         # Training
         train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
