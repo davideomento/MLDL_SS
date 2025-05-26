@@ -341,7 +341,7 @@ def main():
             'model_state': model.state_dict(),
             'optimizer_state': optimizer.state_dict(),
             'epoch': epoch,
-            'best_miou': val_metrics['mIoU'],
+            'best_miou': val_metrics['miou'],
         }
         torch.save(checkpoint_data, checkpoint_path)
         print(f"💾 Checkpoint salvato a {checkpoint_path}")
