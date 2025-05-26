@@ -2,9 +2,10 @@ import os
 from PIL import Image
 import torch
 from torch.utils.data import Dataset
-import torchvision.transforms as transforms
+import numpy as np
 from datasets.gta5_labels import GTA5Labels_TaskCV2017
 from torchvision.transforms import functional as F
+import albumentations as A
 
 def to_tensor_no_normalization(pic):
     """
@@ -63,19 +64,44 @@ class GTA5(Dataset):
 
     def __len__(self):
         return len(self.image_paths)
+
+    def _map_labels(self, label_tensor):
+        mapped = torch.full_like(label_tensor, 255)
+        for gta_id, cityscapes_id in self.id_mapping.items():
+            mapped[label_tensor == gta_id] = cityscapes_id
+        return mapped
     
     def __getitem__(self, idx):
-        img = Image.open(self.image_paths[idx]).convert("RGB")
-        label = Image.open(self.label_paths[idx])
+        # 1. Caricamento
+        img_path = self.image_paths[idx]
+        mask_path = self.label_paths[idx]
+        img = Image.open(img_path).convert("RGB")
+        mask = Image.open(mask_path)
 
-        # Se self.transform è una tupla (img_transform, mask_transform)
+        # 2. Augmentazione e resize dell’immagine + maschera insieme
         if self.transform:
             img_transform, _ = self.transform
-            img = img_transform(img)
 
-        label_tensor = F.pil_to_tensor(label).squeeze(0).long()
+            # Se è un Compose di Albumentations
+            if isinstance(img_transform, A.core.composition.Compose):
+                # Albumentations lavora su ndarray
+                data = img_transform(
+                    image=np.array(img),
+                    mask=np.array(mask)
+                )
+                img = data['image']
+                mask = data['mask']
+            else:
+                # torchvision transforms: solo sull’immagine
+                img = img_transform(img)
 
+        # 3. Mappatura ID GTA → Cityscapes e resize maschera
+        # Trasforma la maschera in tensor di interi
+        mask_tensor = mask.long()
+        mask_tensor = self._map_labels(mask_tensor)
+
+        # LabelTransform fa ID conversion (se richiesto) + resize tensoriale
         if self.target_transform:
-            label_tensor = self.target_transform(label_tensor)
+            mask_tensor = self.target_transform(mask_tensor)
 
-        return img, label_tensor
+        return img, mask_tensor
