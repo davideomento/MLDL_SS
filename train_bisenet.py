@@ -9,9 +9,8 @@ import torch.nn as nn
 import torchvision.transforms as transforms
 import wandb
 from torchvision.transforms import functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
-
 
 #from monai.losses import DiceLoss
 from datasets.cityscapes import CityScapes
@@ -125,8 +124,18 @@ val_dataset = CityScapes(
     target_transform=label_transform
 )
 
-train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=2)
-val_dataloader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_workers=2)
+dataset_train_size = len(train_dataset)
+subset_train_size = int(0.01 * dataset_train_size)
+random_indices = np.random.permutation(dataset_train_size)[:subset_train_size]
+train_subset = Subset(train_dataset, random_indices)
+
+dataset_val_size = len(val_dataset)
+subset_val_size = int(0.1 * dataset_val_size)
+random_indices = np.random.permutation(dataset_val_size)[:subset_val_size]
+val_subset = Subset(val_dataset, random_indices)
+
+train_dataloader = DataLoader(train_subset, batch_size=16, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_subset, batch_size=16, shuffle=False, num_workers=2)
 
 # =====================
 # Model Setup
@@ -297,9 +306,10 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
                 axes[2].axis('off')
 
                 plt.tight_layout()
-                fname = f"{save_dir}/img_gt_pred_gtcolor_epoch_{epoch}.png"
-                plt.savefig(fname)
+                plt.savefig(f"validation_epoch_{epoch}.png")
                 plt.close()
+                wandb.log({"validation_image": wandb.Image(fig)})
+                tqdm.write(f"Validation image saved for epoch {epoch}")
 
 
     # Calcolo delle metriche per epoca
@@ -329,37 +339,14 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
-    best_model_path = os.path.join(save_dir, 'best_model_bisenet.pth')
     checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet.pth')
     var_model = "bisenet" 
-    save_every = 1
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
+    project_name = f"{var_model}provabisenet"
 
-    # Dati per il salvataggio delle metriche
-    csv_path = os.path.join(save_dir, 'metrics.csv')
-
-    # Carica metriche precedenti se esistono
-    if os.path.exists(csv_path):
-        df = pd.read_csv(csv_path)
-        metrics_data = {
-            'epoch': df['epoch'].tolist(),
-            'train_loss': df['train_loss'].tolist(),
-            'val_loss': df['val_loss'].tolist(),
-            'val_accuracy': df['val_accuracy'].tolist(),
-            'miou': df['miou'].tolist()  
-        }
-        print("📂 Metriche precedenti caricate da metrics.csv")
-    else:
-        metrics_data = {
-            'epoch': [],
-            'train_loss': [],
-            'val_loss': [],
-            'val_accuracy': [],
-            'miou': []
-        }
-
+    # 🔹 Ripristina da checkpoint locale se esiste
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['model_state'])
@@ -368,78 +355,37 @@ def main():
         start_epoch = checkpoint['epoch'] + 1
         print(f"✔ Ripreso da epoca {checkpoint['epoch']} con mIoU: {best_miou:.4f}")
 
+    # 🔹 Inizializza wandb una sola volta
+    wandb.init(
+        project=project_name,
+        entity="mldl-semseg-politecnico-di-torino",
+        name=f"run_{var_model}",
+        resume="allow"
+    )
+    print("🛰️ Wandb inizializzato")
+
     for epoch in range(start_epoch, num_epochs + 1):
-        # 🔹 Wandb project name dinamico in base al modello
-        project_name = f"{var_model}_lr_0.00625_0.6ce_0.2ls_0.2tv"
-        wandb.init(project=project_name,
-                entity="mldl-semseg-politecnico-di-torino",
-                name=f"epoch_{epoch}",
-                reinit=True)  # Inizializza wandb per questa epoca
-        print("🛰️ Wandb inizializzato")
-
-        # 🔹 Se non è la prima epoca, carica il modello precedente da wandb
-        if epoch != 1:
-            path_last_model = f"{project_name}/model_epoch_{epoch-1}:latest"
-            artifact = wandb.use_artifact(path_last_model, type="model")
-            artifact_dir = artifact.download()
-            checkpoint_path = os.path.join(artifact_dir, f"model_epoch_{epoch-1}.pt")
-            checkpoint = torch.load(checkpoint_path)
-
-            model.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            print(f"📦 Modello caricato da WandB: {checkpoint_path}")
-
-
         # Training
         train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
         
         # Validation and Metrics
         val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
-        
-        # Registriamo i dati per il salvataggio
-        metrics_data['epoch'].append(epoch)
-        metrics_data['train_loss'].append(train_loss)
-        metrics_data['val_loss'].append(val_metrics['loss'])
-        metrics_data['val_accuracy'].append(val_metrics['accuracy'])
-        metrics_data['miou'].append(val_metrics['miou'])
-
-        # Salvataggio del modello migliore
-        if val_metrics['miou'] > best_miou:
-            best_miou = val_metrics['miou']
-            torch.save(model.state_dict(), best_model_path)
-            print(f"✅ Best model salvato con mIoU: {val_metrics['miou']:.4f}")
-
-        if epoch % save_every == 0:
-            checkpoint = {
-                'epoch': epoch,
-                'model_state': model.state_dict(),
-                'optimizer_state': optimizer.state_dict(),
-                'best_miou': best_miou
-            }
-            torch.save(checkpoint, checkpoint_path)
-            print(f"💾 Checkpoint salvato all’epoca {epoch}")
-            
-            # Salvataggio delle metriche su un unico CSV
-            df = pd.DataFrame(metrics_data)
-            # Prima di salvare
-
-            df.to_csv(csv_path, index=False)
-            print(f"📊 Metriche aggiornate in {csv_path}")
-            # 🔹 Salva metriche su wandb (funzioni personalizzate)
         save_metrics_on_wandb(epoch, train_loss, val_metrics)
-        #save_metrics_on_file(epoch, train_loss, val_metrics)
 
-        # 🔹 Chiudi wandb
-        wandb.finish()
-
-    # Al termine dell'addestramento, carica il miglior modello e valida di nuovo
-    model.load_state_dict(torch.load(best_model_path))
+        # 🔹 Salva il checkpoint localmente
+        checkpoint_data = {
+            'model_state': model.state_dict(),
+            'optimizer_state': optimizer.state_dict(),
+            'epoch': epoch,
+            'best_miou': val_metrics['miou'],
+        }
+        torch.save(checkpoint_data, checkpoint_path)
+        print(f"💾 Checkpoint salvato a {checkpoint_path}")
+    
+    # Validazione finale
     validate(model, val_dataloader, criterion)
 
-    # Esegui il grafico delle metriche salvate
-    plot_metrics(metrics_data)
-
-def plot_metrics(metrics_data):
+'''def plot_metrics(metrics_data):
     # Funzione per plottare le metriche nel tempo
     df = pd.DataFrame(metrics_data)
 
@@ -482,7 +428,7 @@ def plot_metrics(metrics_data):
     plt.grid(True)
     plt.show()
 
-
+'''
 
 if __name__ == "__main__":
     main()

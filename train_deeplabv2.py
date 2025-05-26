@@ -46,7 +46,7 @@ save_dir = os.path.join(base_path, 'checkpoints_deeplabv2')
 os.makedirs(save_dir, exist_ok=True)
 
 # =====================
-# Transforms
+# Label Transforms
 # =====================
 class LabelTransform():
     def __init__(self, size=(512, 1024)):
@@ -130,6 +130,7 @@ class_weights = torch.tensor([
 criterion = nn.CrossEntropyLoss(weight = class_weights, ignore_index=255)
 optimizer = optim.SGD(model.optim_parameters(lr=1e-3), momentum=0.9, weight_decay=0.0005)
 num_epochs = 50
+#mettere sia che cambia ogni iter che ogni epoca
 max_iter = num_epochs* len(train_dataloader)
 
 # =====================
