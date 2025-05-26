@@ -291,11 +291,15 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
 
 
 
-# Modificare la funzione main per raccogliere e salvare i dati
 def main():
     checkpoint_path = os.path.join(save_dir, 'checkpoint_deeplabv2.pth')
     var_model = "deeplabv2" 
     init_lr = 1e-3
+    best_miou = 0
+    start_epoch = 1
+    project_name = f"{var_model}provadeeplab"
+
+    # 🔹 Ripristina da checkpoint locale se esiste
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['model_state'])
@@ -303,29 +307,27 @@ def main():
         best_miou = checkpoint['best_miou']
         start_epoch = checkpoint['epoch'] + 1
         print(f"✔ Ripreso da epoca {checkpoint['epoch']} con mIoU: {best_miou:.4f}")
-    else:
-        start_epoch = 1
-    for epoch in range(start_epoch, num_epochs + 1):
-    # 🔹 Wandb project name dinamico in base al modello
-        project_name = f"{var_model}provadeeplab"
-        wandb.init(project=project_name,
-                entity="mldl-semseg-politecnico-di-torino",
-                name=f"epoch_{epoch}",
-                reinit=True)  # Inizializza wandb per questa epoca
-        print("🛰️ Wandb inizializzato")
+    
+    # 🔹 Inizializza wandb una sola volta
+    wandb.init(
+        project=project_name,
+        entity="mldl-semseg-politecnico-di-torino",
+        name=f"run_{var_model}",
+        resume="allow"
+    )
+    print("🛰️ Wandb inizializzato")
 
-        # 🔹 Se non è la prima epoca, carica il modello precedente da wandb
+    for epoch in range(start_epoch, num_epochs + 1):
+        # 🔹 Se non è la prima epoca, carica modello precedente da WandB
         if epoch != 1:
             path_last_model = f"{project_name}/model_epoch_{epoch-1}:latest"
             artifact = wandb.use_artifact(path_last_model, type="model")
             artifact_dir = artifact.download()
             checkpoint_path = os.path.join(artifact_dir, f"model_epoch_{epoch-1}.pt")
             checkpoint = torch.load(checkpoint_path)
-
             model.load_state_dict(checkpoint['model_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             print(f"📦 Modello caricato da WandB: {checkpoint_path}")
-
 
         # Training
         train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
@@ -333,7 +335,10 @@ def main():
         # Validation and Metrics
         val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
         save_metrics_on_wandb(epoch, train_loss, val_metrics)
+    
+    # Validazione finale
     validate(model, val_dataloader, criterion)
+
 
 
 '''def plot_metrics(metrics_data):
