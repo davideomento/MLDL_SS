@@ -45,7 +45,7 @@ base_path = '/kaggle/working'
 data_dir = '/kaggle/input/cityscapes/Cityscapes/Cityspaces'
 
 # Pretrained model path
-pretrain_model_path = '/kaggle/input/deeplab-resnet-pretrained-imagenet/deeplab_resnet_pretrained_imagenet (1).pth'
+pretrain_model_path = "/kaggle/input/deeplab-resnet-pretrained-imagenet/deeplab_resnet_pretrained_imagenet (1).pth"
 save_dir = os.path.join(base_path, 'checkpoints_deeplabv2')
 os.makedirs(save_dir, exist_ok=True)  # <-- CREA LA CARTELLA SE NON ESISTE
 checkpoint_path = os.path.join(save_dir, "checkpoint_latest.pt")
