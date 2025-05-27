@@ -337,9 +337,11 @@ def main():
         project=project_name,
         entity="mldl-semseg-politecnico-di-torino",
         name=f"run_{var_model}",
+        id="lbe67c8v",                    # Questo è il punto chiave
         resume="allow"
     )
     print("🛰️ Wandb inizializzato")
+
     
     for epoch in range(start_epoch, num_epochs + 1):
 
