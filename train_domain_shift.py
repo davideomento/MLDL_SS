@@ -13,6 +13,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from datasets.gta5 import *
 import torch.nn.functional as nnF
+from models.discriminator import FCDiscriminator
+from datasets.gta5 import GTA5, transform_gta_to_cityscapes_label
 
 
 #from monai.losses import DiceLoss
@@ -114,8 +116,16 @@ val_dataset = CityScapes(
     target_transform=label_transform_val
 )
 
-train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=2)
-val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)
+# Dataloader per il dominio sorgente (GTA5)
+source_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=2)
+
+# Dataloader per il dominio target (Cityscapes, ma senza label supervisionate)
+target_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=True, num_workers=2)
+
+
+# output stride e numero classi corrispondono all'output di BiSeNet
+num_classes = 19
+discriminator = FCDiscriminator(num_classes=num_classes).cuda()
 
 # =====================
 # Model Setup
@@ -135,9 +145,13 @@ class_weights = torch.tensor([
     6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
 ], dtype=torch.float).to(device)
 
-criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
-#dice_loss = DiceLoss(to_onehot_y=True, softmax=True)
-optimizer = torch.optim.SGD(model.parameters(), lr=2.5e-2, weight_decay=1e-4, momentum=0.9)
+
+optimizer_seg = torch.optim.SGD(model.parameters(), lr=2.5e-4)
+optimizer_disc = torch.optim.SGD(discriminator.parameters(), lr=1e-4)
+
+criterion_seg = nn.CrossEntropyLoss()
+criterion_adv = nn.BCEWithLogitsLoss()
+
 
 num_epochs = 50
 max_iter = num_epochs
@@ -145,50 +159,77 @@ max_iter = num_epochs
 # =====================
 # Training & Validation
 # =====================
-def train(epoch, model, train_loader, criterion, optimizer, init_lr):
+def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, criterion_adv, optimizer_seg, optimizer_disc, lr_seg, lr_disc):
     model.train()
+    discriminator.train()
+
     running_loss = 0.0
-    loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}")
-    poly_lr_scheduler(optimizer, init_lr, epoch, max_iter)
+    loop = tqdm(zip(source_dataloader, target_dataloader), total=min(len(source_dataloader), len(target_dataloader)), desc=f"Epoch {epoch}")
 
-    for batch_idx, (inputs, targets) in loop:
-        inputs, targets = inputs.to(device), targets.to(device)
+    poly_lr_scheduler(optimizer_seg, lr_seg, epoch, max_iter)
+    poly_lr_scheduler(optimizer_disc, lr_disc, epoch, max_iter)
 
-        optimizer.zero_grad()
-        outputs = model(inputs)
+    for batch_idx, ((inputs_s, targets_s), (inputs_t, _)) in enumerate(loop):
+        inputs_s, targets_s = inputs_s.to(device), targets_s.to(device)
+        inputs_t = inputs_t.to(device)
+
+        # Segmentation loss
+        optimizer_seg.zero_grad()
+        outputs_s = model(inputs_s)
         alpha = 1
-        if isinstance(outputs, (tuple, list)) and len(outputs) == 3:
-            main_out, aux1_out, aux2_out = outputs
-            loss = (
-                criterion(main_out, targets)
-                + alpha * criterion(aux1_out, targets)
-                + alpha * criterion(aux2_out, targets)
+        if isinstance(outputs_s, (tuple, list)) and len(outputs_s) == 3:
+            main_out, aux1_out, aux2_out = outputs_s
+            loss_seg = (
+                criterion_seg(main_out, targets_s)
+                + alpha * criterion_seg(aux1_out, targets_s)
+                + alpha * criterion_seg(aux2_out, targets_s)
             )
         else:
-            loss = criterion(outputs, targets)
+            loss_seg = criterion_seg(outputs_s, targets_s)
 
-        loss.backward()
-        optimizer.step()
+        loss_seg.backward()
+        optimizer_seg.step()
 
-        running_loss += loss.item()
+        # Adversarial loss
+        optimizer_disc.zero_grad()
+        outputs_s_detached = outputs_s.detach()  # Disattiva il gradiente per l'output della rete principale
+        outputs_t = model(inputs_t)
+        outputs_t_detached = outputs_t.detach()  # Disattiva il gradiente per l'output della rete principale
+
+        pred_s = discriminator(outputs_s_detached)
+        pred_t = discriminator(outputs_t_detached)
+        loss_disc = criterion_adv(pred_s, torch.ones_like(pred_s)) + criterion_adv(pred_t, torch.zeros_like(pred_t))
+        loss_disc.backward()
+        optimizer_disc.step()
+
+        optimizer_seg.zero_grad()
+        outputs_t = model(inputs_t)
+        pred_t = discriminator(outputs_t)
+        loss_adv = criterion_adv(pred_t, torch.ones_like(pred_t))  # il segmentatore vuole che il discriminatore "pensi" target come source
+        loss_adv.backward()
+        optimizer_seg.step()        
+
+        running_loss += loss_seg.item() + loss_adv.item() + loss_disc.item()
         loop.set_postfix(loss=running_loss / (batch_idx + 1))
 
     # ⬇️ Salvataggio modello e logging wandb dopo il training dell'epoca
-    mean_loss = running_loss / len(train_loader)
-    lr = optimizer.param_groups[0]['lr']  # Prende il learning rate corrente
-
+    mean_loss = running_loss / len(loop)
+    lr_seg = optimizer_seg.param_groups[0]['lr']  # Prende il learning rate corrente
+    lr_disc = optimizer_disc.param_groups[0]['lr']  # Prende il learning rate corrente
     print("Saving the model")
     wandb.log({
         "epoch": epoch,
         "loss": mean_loss,
-        "lr": lr
+        "lr_seg": lr_seg,
+        "lr_disc": lr_disc
     })
 
     model_save_path = f"model_epoch_{epoch}.pt"
     torch.save({
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
+        'optimizer_seg_state_dict': optimizer_seg.state_dict(),
+        'optimizer_disc_state_dict': optimizer_disc.state_dict(),
         'loss': mean_loss,
     }, model_save_path)
 
@@ -202,7 +243,6 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
 
 
 
- 
 CITYSCAPES_COLORS = [
     (128, 64,128), (244, 35,232), ( 70, 70, 70), (102,102,156),
     (190,153,153), (153,153,153), (250,170, 30), (220,220,  0),
@@ -221,7 +261,7 @@ def decode_segmap(mask):
 
 
 
-def validate(model, val_loader, criterion, epoch, num_classes=19):
+def validate(model, target_loader, criterion_seg, epoch, num_classes=19):
     model.eval()
     val_loss = 0
     correct = 0
@@ -233,11 +273,11 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 
 
     with torch.no_grad():
-        loop = tqdm(enumerate(val_loader), total=len(val_loader), desc="Validating")
+        loop = tqdm(enumerate(target_loader), total=len(target_loader), desc="Validating")
         for batch_idx, (inputs, targets) in loop:
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = model(inputs)
-            loss = criterion(outputs, targets)
+            loss = criterion_seg(outputs, targets)
 
             val_loss += loss.item()
             _, predicted = outputs.max(1)
@@ -290,7 +330,7 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 
 
     # Calcolo delle metriche per epoca
-    val_loss /= len(val_loader)
+    val_loss /= len(target_loader)
     val_accuracy = 100. * correct / total
     iou_per_class = total_intersection / total_union
     miou = torch.nanmean(iou_per_class).item()
@@ -316,18 +356,19 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
-    best_model_path = os.path.join(save_dir, 'best_model_bisenet.pth')
-    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet.pth')
-    var_model = "bisenet" 
+    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet_adversarial.pth')
+    var_model = "bisenet_adversarial" 
     best_miou = 0
     start_epoch = 1
-    init_lr = 2.5e-2
-    project_name = f"{var_model}_3a_official"
+    lr_seg = 2.5e-2
+    lr_disc = 1e-4
+    project_name = f"{var_model}_prova"
 
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['model_state'])
-        optimizer.load_state_dict(checkpoint['optimizer_state'])
+        optimizer_seg.load_state_dict(checkpoint['optimizer_state_seg'])
+        optimizer_disc.load_state_dict(checkpoint['optimizer_state_disc'])
         best_miou = checkpoint['best_miou']
         start_epoch = checkpoint['epoch'] + 1
         print(f"✔ Ripreso da epoca {checkpoint['epoch']} con mIoU: {best_miou:.4f}")
@@ -337,7 +378,7 @@ def main():
         project=project_name,
         entity="mldl-semseg-politecnico-di-torino",
         name=f"run_{var_model}",
-        id="lbe67c8v",                    # Questo è il punto chiave
+        #inserire id
         resume="allow"
     )
     print("🛰️ Wandb inizializzato")
@@ -346,16 +387,17 @@ def main():
     for epoch in range(start_epoch, num_epochs + 1):
 
         # Training
-        train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
+        train_loss = train(epoch, model, source_dataloader, target_dataloader, criterion_seg, criterion_adv, optimizer_seg, optimizer_disc, lr_seg, lr_disc)
         
         # Validation and Metrics
-        val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
+        val_metrics = validate(model, target_dataloader, criterion_seg, epoch=epoch)
         save_metrics_on_wandb(epoch, train_loss, val_metrics)
 
         # 🔹 Salva il checkpoint localmente
         checkpoint_data = {
             'model_state': model.state_dict(),
-            'optimizer_state': optimizer.state_dict(),
+            'optimizer_state_seg': optimizer_seg.state_dict(),
+            'optimizer_state_disc': optimizer_disc.state_dict(),
             'epoch': epoch,
             'best_miou': val_metrics['miou'],
         }
@@ -363,53 +405,7 @@ def main():
         print(f"💾 Checkpoint salvato a {checkpoint_path}")
     
     # Validazione finale
-    validate(model, val_dataloader, criterion)
-
-    # Esegui il grafico delle metriche salvate
-    plot_metrics(metrics_data)
-
-def plot_metrics(metrics_data):
-    # Funzione per plottare le metriche nel tempo
-    df = pd.DataFrame(metrics_data)
-
-    plt.figure(figsize=(12, 6))
-    plt.plot(df['epoch'], df['val_loss'], label='Validation Loss')
-    plt.plot(df['epoch'], df['train_loss'], label='Train Loss', linestyle='--')
-    plt.title('Loss over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    plt.figure(figsize=(12, 6))
-    plt.plot(df['epoch'], df['val_accuracy'], label='Validation Accuracy')
-    plt.title('Accuracy over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy (%)')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    plt.figure(figsize=(12, 6))
-    plt.plot(df['epoch'], df['miou'], label='mIoU')
-    plt.title('Mean IoU over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('mIoU')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    # Plot della IoU per classe (opzionale)
-    iou_per_class = np.array(df['iou_per_class'].tolist())
-    for i in range(iou_per_class.shape[1]):
-        plt.plot(df['epoch'], iou_per_class[:, i], label=f'Class {i}')
-    plt.title('IoU per Class over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('IoU')
-    plt.legend(loc='upper left')
-    plt.grid(True)
-    plt.show()
+    validate(model, target_dataloader, criterion_seg, epoch=num_epochs)
 
 
 
