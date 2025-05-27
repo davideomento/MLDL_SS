@@ -36,7 +36,7 @@ set_seed(42)
 # Ambiente: Kaggle
 # ================================
 
-print("\ud83d\udccd Ambiente: Kaggle")
+print("📍 Ambiente: Kaggle")
 
 # Percorso di lavoro per salvare output (modelli, metriche, immagini)
 base_path = '/kaggle/working'
