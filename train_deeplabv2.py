@@ -166,7 +166,7 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
         "epoch": epoch,
         "loss": mean_loss,
         "lr": lr
-    })
+    },step=epoch)
 
     model_save_path = f"model_epoch_{epoch}.pt"
     torch.save({
@@ -260,7 +260,7 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
                 plt.tight_layout()
                 plt.savefig(f"validation_epoch_{epoch}.png")
                 plt.close()
-                wandb.log({"validation_image": wandb.Image(fig)})
+                wandb.log({"validation_image": wandb.Image(fig)}, step=epoch)
                 tqdm.write(f"Validation image saved for epoch {epoch}")
     # Calcolo delle metriche per epoca
     val_loss /= len(val_loader)
