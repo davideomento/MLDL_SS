@@ -14,7 +14,6 @@ from tqdm import tqdm
 from datasets.gta5 import *
 import torch.nn.functional as nnF
 from models.discriminator import FCDiscriminator
-from datasets.gta5 import GTA5, transform_gta_to_cityscapes_label
 
 
 #from monai.losses import DiceLoss
@@ -149,7 +148,7 @@ class_weights = torch.tensor([
 optimizer_seg = torch.optim.SGD(model.parameters(), lr=2.5e-4)
 optimizer_disc = torch.optim.SGD(discriminator.parameters(), lr=1e-4)
 
-criterion_seg = nn.CrossEntropyLoss()
+criterion_seg = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
 criterion_adv = nn.BCEWithLogitsLoss()
 
 
@@ -186,7 +185,7 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
             )
         else:
             loss_seg = criterion_seg(outputs_s, targets_s)
-            
+
         print(f"loss_seg: {loss_seg}, loss_seg shape: {getattr(loss_seg, 'shape', None)}")
 
         loss_seg.backward()
