@@ -205,7 +205,7 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
 
         optimizer_seg.zero_grad()
         outputs_t = model(inputs_t)
-        pred_t = discriminator(outputs_t)
+        pred_t = discriminator(outputs_t[0])
         loss_adv = criterion_adv(pred_t, torch.ones_like(pred_t))  # il segmentatore vuole che il discriminatore "pensi" target come source
         loss_adv.backward()
         optimizer_seg.step()        
