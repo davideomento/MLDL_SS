@@ -105,9 +105,156 @@ num_epochs = 50
 max_iter = num_epochs * len(train_dataloader)
 
 # =====================
-# Train / Validate Functions (rimangono invariati)
+# Train / Validate
 # =====================
-# [OMESSO PER BREVITA' - Il contenuto delle funzioni `train`, `validate`, `decode_segmap` va mantenuto come nel tuo script]
+def train(epoch, model, train_loader, criterion, optimizer, init_lr):
+    model.train()
+    running_loss = 0.0
+    batch_idx = 0
+    loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}")
+    current_iter = epoch * len(train_loader) + batch_idx
+    poly_lr_scheduler(optimizer, init_lr, current_iter, max_iter)
+    for batch_idx, (inputs, targets) in loop:
+        inputs, targets = inputs.to(device), targets.to(device)
+
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        if isinstance(outputs, (tuple, list)):
+            outputs = outputs[0]
+        loss = criterion(outputs, targets)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+        loop.set_postfix(loss=running_loss / (batch_idx + 1))
+    # ⬇️ Salvataggio modello e logging wandb dopo il training dell'epoca
+    mean_loss = running_loss / len(train_loader)
+    lr = optimizer.param_groups[0]['lr']  # Prende il learning rate corrente
+
+    print("Saving the model")
+    wandb.log({
+        "epoch": epoch,
+        "loss": mean_loss,
+        "lr": lr
+    },step=epoch)
+
+    model_save_path = f"model_epoch_{epoch}.pt"
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss': mean_loss,
+    }, model_save_path)
+
+    artifact = wandb.Artifact(f"model_epoch_{epoch}", type="model")
+    artifact.add_file(model_save_path)
+    wandb.log_artifact(artifact)
+
+    print(f"Model saved for epoch {epoch}")
+
+    return mean_loss
+
+CITYSCAPES_COLORS = [
+    (128, 64,128), (244, 35,232), ( 70, 70, 70), (102,102,156),
+    (190,153,153), (153,153,153), (250,170, 30), (220,220,  0),
+    (107,142, 35), (152,251,152), ( 70,130,180), (220, 20, 60),
+    (255,  0,  0), (  0,  0,142), (  0,  0, 70), (  0, 60,100),
+    (  0, 80,100), (  0,  0,230), (119, 11, 32)
+]
+     
+def decode_segmap(mask):
+    """Converte una mappa con classi 0-18 in immagine RGB"""
+    h, w = mask.shape
+    color_mask = np.zeros((h, w, 3), dtype=np.uint8)
+    for label_id, color in enumerate(CITYSCAPES_COLORS):
+        color_mask[mask == label_id] = color
+    return color_mask
+
+def validate(model, val_loader, criterion, num_classes=19, epoch=0):
+    model.eval()
+    val_loss = 0
+    correct = 0
+    total = 0
+    loss_values = []
+    accuracy_values = []
+    total_intersection = torch.zeros(num_classes, dtype=torch.float64)
+    total_union = torch.zeros(num_classes, dtype=torch.float64)
+
+
+    with torch.no_grad():
+        loop = tqdm(enumerate(val_loader), total=len(val_loader), desc="Validating")
+        for batch_idx, (inputs, targets) in loop:
+            inputs, targets = inputs.to(device), targets.to(device)
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
+
+            val_loss += loss.item()
+            _, predicted = outputs.max(1)
+            correct += (predicted == targets).sum().item()
+            total += targets.numel()
+
+            inter, uni = calculate_iou(predicted, targets, num_classes, ignore_index=255)
+            total_intersection += inter
+            total_union += uni
+
+
+            # Salvataggio della loss e accuratezza per epoca
+            loss_values.append(loss.item())
+            accuracy_values.append((predicted == targets).sum().item() / targets.numel())
+
+            if batch_idx == 0:
+                img_tensor = inputs[0].cpu()
+                gt_vis = targets[0].cpu().numpy()
+                pred_vis = predicted[0].cpu().numpy()
+
+                mean = torch.tensor([0.485, 0.456, 0.406]).view(3,1,1)
+                std = torch.tensor([0.229, 0.224, 0.225]).view(3,1,1)
+                img_dn = img_tensor * std + mean
+                img_np = img_dn.permute(1,2,0).numpy()
+
+            
+
+                fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+                axes[0].imshow(img_np)
+                axes[0].set_title("Input Image")
+                axes[0].axis('off')
+
+                axes[1].imshow(decode_segmap(gt_vis))  # usa colormap ufficiale
+                axes[1].set_title("GT (Colored)")
+                axes[1].axis('off')
+
+                axes[2].imshow(decode_segmap(pred_vis))
+                axes[2].set_title("Prediction")
+                axes[2].axis('off')
+
+                plt.tight_layout()
+                plt.savefig(f"validation_epoch_{epoch}.png")
+                plt.close()
+                wandb.log({"validation_image": wandb.Image(fig)}, step=epoch)
+                tqdm.write(f"Validation image saved for epoch {epoch}")
+    # Calcolo delle metriche per epoca
+    val_loss /= len(val_loader)
+    val_accuracy = 100. * correct / total
+    iou_per_class = total_intersection / total_union
+    miou = torch.nanmean(iou_per_class).item()
+
+    print(f'Validation Loss: {val_loss:.6f} | Acc: {val_accuracy:.2f}% | mIoU: {miou:.4f}')
+    if epoch == 50:
+        bench_results = benchmark_model(model)
+    else:
+        bench_results = {k: None for k in ['mean_latency','mean_fps','num_flops','trainable_params']}
+
+
+    return {
+        'loss': val_loss,
+        'accuracy': val_accuracy,
+        'miou': miou,
+        'iou_per_class': iou_per_class,
+        'loss_values': loss_values,
+        'accuracy_values': accuracy_values,
+        **bench_results
+    }
+
 
 # =====================
 # Main Function
