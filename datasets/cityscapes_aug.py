@@ -6,7 +6,7 @@ import numpy as np
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
-class CityScapes(Dataset):
+class CityScapes_aug(Dataset):
     def __init__(self, root_dir, split='val', transform=None):
         self.root_dir = root_dir
         self.split = split
