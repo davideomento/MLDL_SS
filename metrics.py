@@ -14,8 +14,18 @@ import wandb
 # Ambiente (Colab)
 # ================================
 
-print("📍 Ambiente: Colab")
-pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
+is_colab = 'COLAB_GPU' in os.environ
+is_kaggle = os.path.exists('/kaggle')
+
+if is_colab:
+    pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
+elif is_kaggle:
+    pretrain_model_path = '/kaggle/input/deeplab-resnet-pretrained-imagenet/deeplab_resnet_pretrained_imagenet (1).pth'  # <-- verifica che il file sia lì
+else:
+    print("📍 Ambiente: Locale")
+    base_drive_path = './'
+    working_dir = './'
+
 
 
 model_deeplab = get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path=pretrain_model_path)
