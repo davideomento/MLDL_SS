@@ -186,6 +186,8 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
             )
         else:
             loss_seg = criterion_seg(outputs_s, targets_s)
+            
+        print(f"loss_seg: {loss_seg}, loss_seg shape: {getattr(loss_seg, 'shape', None)}")
 
         loss_seg.backward()
         optimizer_seg.step()
