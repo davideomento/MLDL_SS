@@ -47,7 +47,7 @@ base_path = '/kaggle/working'
 data_dir = '/kaggle/input/cityscapes/Cityscapes/Cityspaces'  # <-- sostituisci "cityscapes" se il tuo dataset ha un nome diverso
 
 # Pesi pre-addestrati del modello: caricali come dataset separato se non l'hai già fatto
-pretrain_model_path = '/kaggle/input/deeplabv2-weights/deeplabv2_weights.pth'  # <-- verifica che il file sia lì
+pretrain_model_path = '/kaggle/input/deeplab-resnet-pretrained-imagenet/deeplab_resnet_pretrained_imagenet (1).pth'  # <-- verifica che il file sia lì
 
 
 # =====================
