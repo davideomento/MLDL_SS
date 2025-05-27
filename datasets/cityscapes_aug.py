@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import Dataset
 import numpy as np
 
-class CityScapes(Dataset):
+class CityScapes_aug(Dataset):
     def __init__(self, root_dir, split='train', transform=None, target_transform=None):
         self.root_dir = root_dir
         self.split = split

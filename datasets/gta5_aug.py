@@ -5,7 +5,7 @@ from torch.utils.data import Dataset
 from torchvision.transforms import functional as F
 import numpy as np
 
-class GTA5(Dataset):
+class GTA5_aug(Dataset):
     def __init__(self, root_dir, transform=None, target_transform=None):
         self.root_dir = root_dir
         self.transform = transform  # ora dovrebbe trasformare immagine+maschera insieme

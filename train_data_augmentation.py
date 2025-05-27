@@ -12,8 +12,6 @@ from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from datasets import *
-from datasets.cityscapes_aug import CityScapes_aug
-from datasets.gta5 import *
 import torch.nn.functional as nnF
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
@@ -21,7 +19,9 @@ from albumentations.pytorch import ToTensorV2
 
 
 #from monai.losses import DiceLoss
-from datasets.cityscapes import CityScapes
+from datasets.cityscapes_aug import CityScapes_aug
+from datasets.gta5 import to_tensor_no_normalization, transform_gta_to_cityscapes_label
+from datasets.gta5_aug import GTA5_aug
 from models.bisenet.build_bisenet import BiSeNet
 from models.bisenet.build_contextpath import build_contextpath
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
@@ -115,7 +115,7 @@ transforms_dict = get_transforms()
 label_transform_train = LabelTransform(size=(720, 1280), id_conversion=True)  # GTA5
 label_transform_val   = LabelTransform(size=(512, 1024), id_conversion=False)  # Cityscapes
 
-train_dataset = GTA5(
+train_dataset = GTA5_aug(
     root_dir=data_dir_train,
     transform=transforms_dict['train'] ,
     target_transform=label_transform_train
