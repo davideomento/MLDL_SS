@@ -125,7 +125,7 @@ target_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=True, num_work
 
 # output stride e numero classi corrispondono all'output di BiSeNet
 num_classes = 19
-discriminator = FCDiscriminator(num_classes=num_classes).cuda()
+discriminator = FCDiscriminator(input_channels=num_classes).cuda()
 
 # =====================
 # Model Setup
