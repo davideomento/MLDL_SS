@@ -101,12 +101,18 @@ transforms_dict = get_transforms()
 label_transform_train = LabelTransform(size=(720, 1280), id_conversion=True)  # GTA5
 label_transform_val   = LabelTransform(size=(512, 1024), id_conversion=False)  # Cityscapes
 
-train_dataset = GTA5(
+train_source_dataset = GTA5(
     root_dir=data_dir_train,
     transform=transforms_dict['train'] ,
     target_transform=label_transform_train
 )
 
+train_target_dataset = CityScapes(
+    root_dir=data_dir_val,
+    split='train',
+    transform=transforms_dict['train'],
+    target_transform=label_transform_val
+)
 
 val_dataset = CityScapes(
     root_dir=data_dir_val,
@@ -116,11 +122,12 @@ val_dataset = CityScapes(
 )
 
 # Dataloader per il dominio sorgente (GTA5)
-source_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=2)
+source_dataloader = DataLoader(train_source_dataset, batch_size=8, shuffle=True, num_workers=2)
 
 # Dataloader per il dominio target (Cityscapes, ma senza label supervisionate)
-target_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=True, num_workers=2)
+target_dataloader = DataLoader(train_source_dataset, batch_size=8, shuffle=True, num_workers=2)
 
+val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)
 
 # output stride e numero classi corrispondono all'output di BiSeNet
 num_classes = 19
@@ -260,7 +267,7 @@ def decode_segmap(mask):
 
 
 
-def validate(model, target_loader, criterion_seg, epoch, num_classes=19):
+def validate(model, val_dataloader, criterion_seg, epoch, num_classes=19):
     model.eval()
     val_loss = 0
     correct = 0
@@ -272,7 +279,7 @@ def validate(model, target_loader, criterion_seg, epoch, num_classes=19):
 
 
     with torch.no_grad():
-        loop = tqdm(enumerate(target_loader), total=len(target_loader), desc="Validating")
+        loop = tqdm(enumerate(val_dataloader), total=len(val_dataloader), desc="Validating")
         for batch_idx, (inputs, targets) in loop:
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = model(inputs)
@@ -329,7 +336,7 @@ def validate(model, target_loader, criterion_seg, epoch, num_classes=19):
 
 
     # Calcolo delle metriche per epoca
-    val_loss /= len(target_loader)
+    val_loss /= len(val_dataloader)
     val_accuracy = 100. * correct / total
     iou_per_class = total_intersection / total_union
     miou = torch.nanmean(iou_per_class).item()
@@ -389,7 +396,7 @@ def main():
         train_loss = train(epoch, model, source_dataloader, target_dataloader, criterion_seg, criterion_adv, optimizer_seg, optimizer_disc, lr_seg, lr_disc)
         
         # Validation and Metrics
-        val_metrics = validate(model, target_dataloader, criterion_seg, epoch=epoch)
+        val_metrics = validate(model, val_dataloader, criterion_seg, epoch=epoch)
         save_metrics_on_wandb(epoch, train_loss, val_metrics)
 
         # 🔹 Salva il checkpoint localmente
@@ -404,7 +411,7 @@ def main():
         print(f"💾 Checkpoint salvato a {checkpoint_path}")
     
     # Validazione finale
-    validate(model, target_dataloader, criterion_seg, epoch=num_epochs)
+    validate(model, val_dataloader, criterion_seg, epoch=num_epochs)
 
 
 
