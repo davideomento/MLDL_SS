@@ -13,10 +13,15 @@ if is_colab:
     print("📍 Ambiente: Colab")
     base_drive_path = '/content/drive/MyDrive/Project_MLDL'  # ← Personalizza se serve
     working_dir = './'
+    weights_path = os.path.join(base_drive_path, 'deeplab_resnet_pretrained_imagenet.pth')
+
 elif is_kaggle:
     print("📍 Ambiente: Kaggle")
-    base_drive_path = '/kaggle/input'  # I dataset sono già in '/kaggle/input'
+    base_drive_path = '/kaggle/input/cityscapes'  # I dataset sono già in '/kaggle/input'
+    base_drive_path_imagenet = '/kaggle/input/deeplab-resnet-pretrained-imagenet'  # I dataset sono già in '/kaggle/input'
     working_dir = '/kaggle/working'
+    weights_path = os.path.join(base_drive_path_imagenet, 'deeplab_resnet_pretrained_imagenet (1).pth')
+
 else:
     print("📍 Ambiente: Locale")
     base_drive_path = './'
