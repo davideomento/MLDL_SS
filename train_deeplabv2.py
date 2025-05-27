@@ -122,6 +122,7 @@ model = get_deeplab_v2(
     pretrain_model_path=pretrain_model_path
 ).to(device)
 
+#Provare a mettere i pesi dinamici
 class_weights = torch.tensor([
     2.6, 6.9, 3.5, 3.6, 3.6, 3.8, 3.4, 3.5, 5.1, 4.7,
     6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
@@ -150,7 +151,6 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
         outputs = model(inputs)
         if isinstance(outputs, (tuple, list)):
             outputs = outputs[0]
-        '''qua non serve alpha = 1 come per bisenet?, guardare paper'''
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
@@ -242,12 +242,7 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
                 img_dn = img_tensor * std + mean
                 img_np = img_dn.permute(1,2,0).numpy()
 
-                # ===> Carica immagine _color dal filesystem
-                # 1. Prendi il percorso della label
-                label_path = val_dataset.label_paths[batch_idx]
-                # 2. Costruisci path della versione _color
-                color_path = label_path.replace('_gtFine_labelTrainIds.png', '_gtFine_color.png')
-                color_img = Image.open(color_path)
+            
 
                 fig, axes = plt.subplots(1, 3, figsize=(18, 6))
                 axes[0].imshow(img_np)
@@ -294,11 +289,11 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
 
 def main():
     checkpoint_path = os.path.join(save_dir, 'checkpoint_deeplabv2.pth')
-    var_model = "deeplabv2" 
+    var_model = "Deeplabv2" 
     init_lr = 1e-3
     best_miou = 0
     start_epoch = 1
-    project_name = f"{var_model}provadeeplab"
+    project_name = f"{var_model}_official"
 
     # 🔹 Ripristina da checkpoint locale se esiste
     if os.path.exists(checkpoint_path):
