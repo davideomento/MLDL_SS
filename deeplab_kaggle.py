@@ -44,7 +44,7 @@ print("📍 Ambiente: Kaggle")
 base_path = '/kaggle/working'
 
 # Dataset: assicurati di averlo caricato nella sezione "Add data" del notebook su Kaggle
-data_dir = '/kaggle/input/Cityscapes/Cityspaces'  # <-- sostituisci "cityscapes" se il tuo dataset ha un nome diverso
+data_dir = '/kaggle/input/cityscapes/Cityscapes/Cityspaces'  # <-- sostituisci "cityscapes" se il tuo dataset ha un nome diverso
 
 # Pesi pre-addestrati del modello: caricali come dataset separato se non l'hai già fatto
 pretrain_model_path = '/kaggle/input/deeplabv2-weights/deeplabv2_weights.pth'  # <-- verifica che il file sia lì
