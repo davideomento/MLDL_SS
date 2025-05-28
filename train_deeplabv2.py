@@ -292,7 +292,7 @@ def main():
     var_model = "Deeplabv2" 
     init_lr = 1e-3
     best_miou = 0
-    start_epoch = 12
+    start_epoch = 1
     project_name = f"{var_model}_official"
 
     # 🔹 Ripristina da checkpoint locale se esiste
