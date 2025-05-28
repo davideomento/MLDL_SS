@@ -309,7 +309,7 @@ def main():
         project=project_name,
         entity="mldl-semseg-politecnico-di-torino",
         name=f"run_{var_model}",
-        id = 'we5mwjaw'
+        id = 'we5mwjaw',
         resume="allow"
     )
     print("🛰️ Wandb inizializzato")
