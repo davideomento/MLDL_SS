@@ -97,7 +97,8 @@ class GTA5(Dataset):
 
         # 3. Mappatura ID GTA → Cityscapes e resize maschera
         # Trasforma la maschera in tensor di interi
-        mask_tensor = mask.long()
+        mask_tensor = torch.from_numpy(mask).long()
+        #mask_tensor = mask.long()
         mask_tensor = self._map_labels(mask_tensor)
 
         # LabelTransform fa ID conversion (se richiesto) + resize tensoriale
