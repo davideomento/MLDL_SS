@@ -11,9 +11,10 @@ import wandb
 from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from datasets.gta5 import GTA5
+from datasets.gta5_aug import *
 import torch.nn.functional as nnF
 import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
 
 #from monai.losses import DiceLoss
@@ -22,7 +23,6 @@ from models.bisenet.build_bisenet import BiSeNet
 from models.bisenet.build_contextpath import build_contextpath
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
 from utils import poly_lr_scheduler
-
 
 # =====================
 # Set Seed
@@ -44,23 +44,26 @@ print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir_train = '/content/MLDL_SS/GTA5'
 data_dir_val = '/content/MLDL_SS/Cityscapes/Cityspaces'    
-save_dir = os.path.join(base_path, 'checkpoints_3a')
+save_dir = os.path.join(base_path, 'checkpoints_augmentation')
 os.makedirs(save_dir, exist_ok=True)
 
 
 # =====================
 # Label Transform
 # =====================
-class LabelTransform():
-    def __init__(self, size):
+class LabelTransform:
+    def __init__(self, size, id_conversion=True):
         self.size = size
+        self.id_conversion = id_conversion
 
-    '''def __call__(self, mask):
-        mask = F.resize(mask, self.size, interpolation=Image.NEAREST)
-        return torch.as_tensor(mask, dtype=torch.long)       '''   
-    
     def __call__(self, mask):
-    # mask è tensor Long di dimensione (H, W)
+        # mask: torch.Tensor (H, W) o PIL.Image se ancora non convertita
+        if not isinstance(mask, torch.Tensor):
+            mask = to_tensor_no_normalization(mask)
+
+        if self.id_conversion:
+            mask = transform_gta_to_cityscapes_label(mask)  # solo per GTA5
+
         mask = mask.unsqueeze(0).unsqueeze(0).float()  # shape (1,1,H,W)
         mask = nnF.interpolate(mask, size=self.size, mode='nearest')
         mask = mask.squeeze().long()
@@ -68,77 +71,42 @@ class LabelTransform():
 
 
 
-# Trasformazione per l'immagine
-img_transform_gta = transforms.Compose([
-            transforms.Resize((720, 1280)),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.ColorJitter(0.5, 0.5, 0.5, 0.1),
-            A.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0)),  # custom
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
-img_transform_cs = transforms.Compose([
-    transforms.Resize((512, 1024)),  # Resize fisso
-    transforms.ToTensor(),
-    transforms.Normalize(mean=(0.485, 0.456, 0.406),
-                         std=(0.229, 0.224, 0.225))
-])
 
-def mask_transform_gta5(mask):
-    return F.resize(mask, (720, 1280), interpolation=F.InterpolationMode.NEAREST)
-
-# Trasformazione per la mask (solo resize, no toTensor, no normalize)
-def mask_transform_cs(mask):
-    return F.resize(mask, (512, 1024), interpolation=F.InterpolationMode.NEAREST)
-
+# Trasformazione per l'immagine    
 def get_transforms():
-    return {
-        'train': (img_transform_gta, mask_transform_gta5),
-        'val': (img_transform_cs, mask_transform_cs)
-    }
-    
-'''
-def get_transforms():
-    train_transform = A.Compose([
-        A.OneOf([
-            A.Resize(height=int(512 * s), width=int(1024 * s))
-            for s in [0.75, 1.0, 1.5, 1.75, 2.0]
-        ], p=1.0),
-        
-        A.PadIfNeeded(min_height=512, min_width=1024, border_mode=0),  # padding se resize più piccola
-        A.RandomCrop(height=512, width=1024),  # crop fisso
-        A.HorizontalFlip(p=0.5),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+    img_transform_gta = A.Compose([
+        A.Resize(720, 1280),
+        A.HorizontalFlip(),
+        A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1),
+        A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0)),
+        A.Normalize(mean=[0.485, 0.456, 0.406], 
+                    std=[0.229, 0.224, 0.225]),
         ToTensorV2()
-    ])
+    ], p=0.5)
 
-    val_transform = A.Compose([
+    img_transform_cs = A.Compose([
         A.Resize(512, 1024),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        A.Normalize(mean=[0.485, 0.456, 0.406], 
+                    std=[0.229, 0.224, 0.225]),
         ToTensorV2()
     ])
 
     return {
-        'train': train_transform,
-        'val': val_transform
-    }'''
-
-
-
-
+        'train': (img_transform_gta, lambda mask: mask),  # Dummy mask_transform, serve per compatibilità
+        'val': (img_transform_cs, lambda mask: mask)
+    }
 
 
 # =====================
 # Dataset & Dataloader
 # =====================
 transforms_dict = get_transforms()
-label_transform_train = LabelTransform(size=(720, 1280))
-label_transform_val = LabelTransform(size=(512, 1024))
+label_transform_train = LabelTransform(size=(720, 1280), id_conversion=True)  # GTA5
+label_transform_val   = LabelTransform(size=(512, 1024), id_conversion=False)  # Cityscapes
 
-img_transform, _ = transforms_dict['train']  
 train_dataset = GTA5(
     root_dir=data_dir_train,
-    transform=img_transform,
+    transform=transforms_dict['train'] ,
     target_transform=label_transform_train
 )
 
@@ -146,8 +114,7 @@ train_dataset = GTA5(
 val_dataset = CityScapes(
     root_dir=data_dir_val,
     split='val',
-    transform=transforms_dict['val'],
-    target_transform=label_transform_val
+    transform=transforms_dict['val']
 )
 
 train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=2)
