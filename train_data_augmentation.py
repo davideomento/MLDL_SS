@@ -337,7 +337,7 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
-    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet_aug1.pth')
+    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet_aug2.pth')
     var_model = "bisenet" 
     best_miou = 0
     start_epoch = 1
