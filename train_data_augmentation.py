@@ -18,7 +18,6 @@ from albumentations.pytorch import ToTensorV2
 from torch.utils.data import Subset
 
 
-
 #from monai.losses import DiceLoss
 from datasets.cityscapes_aug import CityScapes_aug
 from datasets.gta5 import to_tensor_no_normalization, transform_gta_to_cityscapes_label
@@ -85,7 +84,7 @@ img_transform_gta = A.Compose([
         A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1),
         A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0)),
         #A.GaussNoise(var_limit=(10.0, 50.0)),
-        A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3),
+        #A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3),
         A.Normalize(mean=[0.485, 0.456, 0.406], 
                     std=[0.229, 0.224, 0.225]),
         ToTensorV2()
