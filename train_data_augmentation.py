@@ -17,7 +17,7 @@ import albumentations as A
 
 
 #from monai.losses import DiceLoss
-from datasets.cityscapes import CityScapes
+from datasets.cityscapes_aug import CityScapes
 from models.bisenet.build_bisenet import BiSeNet
 from models.bisenet.build_contextpath import build_contextpath
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
