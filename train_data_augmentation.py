@@ -342,7 +342,7 @@ def main():
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}_3b_jitter_bright_saturation_noise_blur"
+    project_name = f"{var_model}_3b_jitter_saturation_blur"
 
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
