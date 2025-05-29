@@ -15,6 +15,7 @@ from datasets import *
 import torch.nn.functional as nnF
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+from torch.utils.data import Subset
 
 
 
@@ -79,22 +80,16 @@ class LabelTransform:
 # Trasformazione per l'immagine
 img_transform_gta = A.Compose([
         A.Resize(720, 1280),
-        A.HorizontalFlip(p=0.5),
-        #A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),  # Low intensity
-        #A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=10, val_shift_limit=10, p=0.5),  # Subtle color variation
-        A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5),
-        A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0), p=0.5),
+        #A.RandomResizedCrop(height=720, width=1280, scale=(0.8, 1.0), ratio=(1.7, 2.3)),
+        A.HorizontalFlip(),
+        A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1),
+        A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0)),
+        #A.GaussNoise(var_limit=(10.0, 50.0)),
+        A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3),
         A.Normalize(mean=[0.485, 0.456, 0.406], 
                     std=[0.229, 0.224, 0.225]),
         ToTensorV2()
-    ])
-img_transform_cs = A.Compose([
-        A.Resize(512, 1024),
-        A.Normalize(mean=[0.485, 0.456, 0.406], 
-                    std=[0.229, 0.224, 0.225]),
-        ToTensorV2()
-    ])
-
+    ], p=0.5)
 
 img_transform_cs = A.Compose([
     A.Resize(512, 1024),
@@ -131,8 +126,18 @@ val_dataset = CityScapes_aug(
     target_transform=label_transform_val
 )
 
-train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=2)
-val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)
+dataset_train_size = len(train_dataset)
+subset_train_size = int(0.2 * dataset_train_size)
+random_indices = np.random.permutation(dataset_train_size)[:subset_train_size]
+train_subset = Subset(train_dataset, random_indices)
+
+dataset_val_size = len(val_dataset)
+subset_val_size = int(0.5 * dataset_val_size)
+random_indices = np.random.permutation(dataset_val_size)[:subset_val_size]
+val_subset = Subset(val_dataset, random_indices)
+
+train_dataloader = DataLoader(train_subset, batch_size=2, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_subset, batch_size=2, shuffle=False, num_workers=2)
 
 # =====================
 # Model Setup
@@ -296,9 +301,10 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
                 axes[2].axis('off')
 
                 plt.tight_layout()
-                fname = f"{save_dir}/img_gt_pred_gtcolor_epoch_{epoch}.png"
-                plt.savefig(fname)
+                plt.savefig(f"validation_epoch_{epoch}.png")
                 plt.close()
+                wandb.log({"validation_image": wandb.Image(fig)}, step=epoch)
+                tqdm.write(f"Validation image saved for epoch {epoch}")
 
 
     # Calcolo delle metriche per epoca
@@ -333,7 +339,7 @@ def main():
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}_3b_official"
+    project_name = f"{var_model}_3b_jitter_fog_blur"
 
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
@@ -376,8 +382,7 @@ def main():
     # Validazione finale
     validate(model, val_dataloader, criterion)
 
-    # Esegui il grafico delle metriche salvate
-    plot_metrics(metrics_data)
+
 
 def plot_metrics(metrics_data):
     # Funzione per plottare le metriche nel tempo
