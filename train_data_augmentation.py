@@ -87,7 +87,7 @@ img_transform_gta = A.Compose([
         A.Normalize(mean=[0.485, 0.456, 0.406], 
                     std=[0.229, 0.224, 0.225]),
         ToTensorV2()
-    ], p=0.5)
+    ])
 img_transform_cs = A.Compose([
         A.Resize(512, 1024),
         A.Normalize(mean=[0.485, 0.456, 0.406], 
