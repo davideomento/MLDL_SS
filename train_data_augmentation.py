@@ -130,12 +130,12 @@ val_dataset = CityScapes_aug(
 )
 
 dataset_train_size = len(train_dataset)
-subset_train_size = int(0.2 * dataset_train_size)
+subset_train_size = int(1 * dataset_train_size)
 random_indices = np.random.permutation(dataset_train_size)[:subset_train_size]
 train_subset = Subset(train_dataset, random_indices)
 
 dataset_val_size = len(val_dataset)
-subset_val_size = int(0.5 * dataset_val_size)
+subset_val_size = int(1 * dataset_val_size)
 random_indices = np.random.permutation(dataset_val_size)[:subset_val_size]
 val_subset = Subset(val_dataset, random_indices)
 
