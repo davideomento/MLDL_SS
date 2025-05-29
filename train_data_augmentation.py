@@ -80,15 +80,13 @@ class LabelTransform:
 # Trasformazione per l'immagine
 img_transform_gta = A.Compose([
         A.Resize(720, 1280),
-        A.Compose([
 
         #A.RandomResizedCrop(height=720, width=1280, scale=(0.8, 1.0), ratio=(1.7, 2.3)),
-        A.HorizontalFlip(),
-        A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1),
-        A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0)),
+        A.HorizontalFlip(p=0.5),
+        A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5),
+        A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0), p=0.5),
         #A.GaussNoise(var_limit=(10.0, 50.0)),
-        A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3)
-        ], p=0.5),
+        A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, p=0.5),
 
         A.Normalize(mean=[0.485, 0.456, 0.406], 
                     std=[0.229, 0.224, 0.225]),
