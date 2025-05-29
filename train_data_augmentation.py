@@ -15,6 +15,7 @@ from datasets.gta5_aug import *
 import torch.nn.functional as nnF
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+from torch.utils.data import Subset
 
 
 #from monai.losses import DiceLoss
@@ -76,9 +77,12 @@ class LabelTransform:
 def get_transforms():
     img_transform_gta = A.Compose([
         A.Resize(720, 1280),
+        #A.RandomResizedCrop(height=720, width=1280, scale=(0.8, 1.0), ratio=(1.7, 2.3)),
         A.HorizontalFlip(),
         A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1),
         A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0)),
+        #A.GaussNoise(var_limit=(10.0, 50.0)),
+        A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3),
         A.Normalize(mean=[0.485, 0.456, 0.406], 
                     std=[0.229, 0.224, 0.225]),
         ToTensorV2()
@@ -117,8 +121,18 @@ val_dataset = CityScapes(
     transform=transforms_dict['val']
 )
 
-train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=2)
-val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)
+dataset_train_size = len(train_dataset)
+subset_train_size = int(0.2 * dataset_train_size)
+random_indices = np.random.permutation(dataset_train_size)[:subset_train_size]
+train_subset = Subset(train_dataset, random_indices)
+
+dataset_val_size = len(val_dataset)
+subset_val_size = int(0.5 * dataset_val_size)
+random_indices = np.random.permutation(dataset_val_size)[:subset_val_size]
+val_subset = Subset(val_dataset, random_indices)
+
+train_dataloader = DataLoader(train_subset, batch_size=2, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_subset, batch_size=2, shuffle=False, num_workers=2)
 
 # =====================
 # Model Setup
