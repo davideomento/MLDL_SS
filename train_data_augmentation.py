@@ -337,12 +337,12 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
-    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet_aug2.pth')
+    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet_aug3.pth')
     var_model = "bisenet" 
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}_3b_jitter_saturation_blur"
+    project_name = f"{var_model}_3b_jitter_saturation_blur_brigh"
 
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
