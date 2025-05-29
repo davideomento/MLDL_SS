@@ -73,35 +73,6 @@ def get_transforms():
         'train': (img_transform, mask_transform),
         'val': (img_transform, mask_transform)
     }
-'''
-def get_transforms():
-    train_transform = A.Compose([
-        A.OneOf([
-            A.Resize(height=int(512 * s), width=int(1024 * s))
-            for s in [0.75, 1.0, 1.5, 1.75, 2.0]
-        ], p=1.0),
-        
-        A.PadIfNeeded(min_height=512, min_width=1024, border_mode=0),  # padding se resize più piccola
-        A.RandomCrop(height=512, width=1024),  # crop fisso
-        A.HorizontalFlip(p=0.5),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ToTensorV2()
-    ])
-
-    val_transform = A.Compose([
-        A.Resize(512, 1024),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ToTensorV2()
-    ])
-
-    return {
-        'train': train_transform,
-        'val': val_transform
-    }'''
-
-
-
-
 
 
 # =====================
@@ -124,18 +95,9 @@ val_dataset = CityScapes(
     target_transform=label_transform
 )
 
-dataset_train_size = len(train_dataset)
-subset_train_size = int(0.01 * dataset_train_size)
-random_indices = np.random.permutation(dataset_train_size)[:subset_train_size]
-train_subset = Subset(train_dataset, random_indices)
 
-dataset_val_size = len(val_dataset)
-subset_val_size = int(0.1 * dataset_val_size)
-random_indices = np.random.permutation(dataset_val_size)[:subset_val_size]
-val_subset = Subset(val_dataset, random_indices)
-
-train_dataloader = DataLoader(train_subset, batch_size=16, shuffle=True, num_workers=2)
-val_dataloader = DataLoader(val_subset, batch_size=16, shuffle=False, num_workers=2)
+train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_workers=2)
 
 # =====================
 # Model Setup
@@ -204,7 +166,7 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
         "epoch": epoch,
         "loss": mean_loss,
         "lr": lr
-    })
+    }, step=epoch)
 
     model_save_path = f"model_epoch_{epoch}.pt"
     torch.save({
@@ -308,7 +270,7 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
                 plt.tight_layout()
                 plt.savefig(f"validation_epoch_{epoch}.png")
                 plt.close()
-                wandb.log({"validation_image": wandb.Image(fig)})
+                wandb.log({"validation_image": wandb.Image(fig)}, step=epoch)
                 tqdm.write(f"Validation image saved for epoch {epoch}")
 
 
@@ -360,6 +322,7 @@ def main():
         project=project_name,
         entity="mldl-semseg-politecnico-di-torino",
         name=f"run_{var_model}",
+        id=f"{var_model}_run",
         resume="allow"
     )
     print("🛰️ Wandb inizializzato")
@@ -385,50 +348,6 @@ def main():
     # Validazione finale
     validate(model, val_dataloader, criterion)
 
-'''def plot_metrics(metrics_data):
-    # Funzione per plottare le metriche nel tempo
-    df = pd.DataFrame(metrics_data)
-
-    plt.figure(figsize=(12, 6))
-    plt.plot(df['epoch'], df['val_loss'], label='Validation Loss')
-    plt.plot(df['epoch'], df['train_loss'], label='Train Loss', linestyle='--')
-    plt.title('Loss over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    plt.figure(figsize=(12, 6))
-    plt.plot(df['epoch'], df['val_accuracy'], label='Validation Accuracy')
-    plt.title('Accuracy over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy (%)')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    plt.figure(figsize=(12, 6))
-    plt.plot(df['epoch'], df['miou'], label='mIoU')
-    plt.title('Mean IoU over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('mIoU')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    # Plot della IoU per classe (opzionale)
-    iou_per_class = np.array(df['iou_per_class'].tolist())
-    for i in range(iou_per_class.shape[1]):
-        plt.plot(df['epoch'], iou_per_class[:, i], label=f'Class {i}')
-    plt.title('IoU per Class over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('IoU')
-    plt.legend(loc='upper left')
-    plt.grid(True)
-    plt.show()
-
-'''
 
 if __name__ == "__main__":
     main()
