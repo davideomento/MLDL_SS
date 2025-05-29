@@ -34,7 +34,6 @@ class GTA5_aug(Dataset):
             img = augmented['image']
             mask = augmented['mask']
 
-        mask = torch.as_tensor(mask, dtype=torch.long)
 
         if self.target_transform:
             mask = self.target_transform(mask)
