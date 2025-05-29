@@ -315,25 +315,38 @@ def main():
     print("🛰️ Wandb inizializzato")
 
     for epoch in range(start_epoch, num_epochs + 1):
-
         # Training
         train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
-        
-        # Validation and Metrics
+
+        # Validation
         val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
         save_metrics_on_wandb(epoch, train_loss, val_metrics)
 
-        # 🔹 Salva il checkpoint localmente
+        # 🔸 Checkpoint locale standard
         checkpoint_data = {
             'model_state': model.state_dict(),
             'optimizer_state': optimizer.state_dict(),
             'epoch': epoch,
-            'best_miou': val_metrics['miou'],
+            'best_miou': best_miou,
         }
         torch.save(checkpoint_data, checkpoint_path)
         print(f"💾 Checkpoint salvato a {checkpoint_path}")
-    
-    # Validazione finale
+
+        # 🔸 SALVATAGGIO BEST MODEL SU W&B
+        if val_metrics['miou'] > best_miou:
+            best_miou = val_metrics['miou']
+            print(f"🌟 Nuovo best mIoU: {best_miou:.4f} all'epoca {epoch}")
+
+            # ➕ Salva il modello come file temporaneo
+            best_model_path = os.path.join(save_dir, "best_model.pth")
+            torch.save(model.state_dict(), best_model_path)
+
+            # 📡 Carica su W&B come artifact
+            artifact = wandb.Artifact("best_model", type="model")
+            artifact.add_file(best_model_path)
+            wandb.log_artifact(artifact)
+            print("📡 Best model caricato su W&B come artifact.")
+
     validate(model, val_dataloader, criterion)
 
 
