@@ -147,7 +147,7 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr, λ=1.0):
         inputs, targets = inputs.to(device), targets.to(device)
 
         optimizer.zero_grad()
-        output = model(inputs)
+        output, _ = model(inputs)
 
         if isinstance(output, tuple):  # con detail head
             seg_out, detail_map = output
