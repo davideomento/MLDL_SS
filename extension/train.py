@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 #from monai.losses import DiceLoss
 from cityscapes import CityScapes
-from extension.stdc_model import STDC_Seg
+from stdc_model import STDC_Seg
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
 from utils import poly_lr_scheduler
 
