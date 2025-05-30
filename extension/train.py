@@ -102,7 +102,7 @@ val_dataloader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_worke
 # =====================
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model = STDC_Seg(num_classes=19, backbone='STDC2', use_detail=True)
+model = STDC_Seg(num_classes=19, backbone='STDC2', use_detail=True).to(device)
 
 class_weights = torch.tensor([
     2.6, 6.9, 3.5, 3.6, 3.6, 3.8, 3.4, 3.5, 5.1, 4.7,
@@ -144,7 +144,7 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr, λ=1.0):
     seg_loss_fn = criterion
 
     for batch_idx, (inputs, targets) in loop:
-        inputs, targets = inputs.to(device), targets.to(device)
+        inputs, targets = inputs.to(device).float(), targets.to(device).long()
 
         optimizer.zero_grad()
         output = model(inputs)
