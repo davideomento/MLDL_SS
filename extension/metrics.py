@@ -6,7 +6,6 @@ import time
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
-from stdc_model import STDC
 import wandb
 
 # ================================
