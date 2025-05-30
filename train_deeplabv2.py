@@ -98,18 +98,11 @@ val_dataset = CityScapes(
 )
 
 
-dataset_train_size = len(train_dataset)
-subset_train_size = int(1 * dataset_train_size)
-random_indices = np.random.permutation(dataset_train_size)[:subset_train_size]
-train_subset = Subset(train_dataset, random_indices)
+print(f"Train dataset size: {len(train_dataset)}")
+print(f"Validation dataset size: {len(val_dataset)}")
 
-dataset_val_size = len(val_dataset)
-subset_val_size = int(1 * dataset_val_size)
-random_indices = np.random.permutation(dataset_val_size)[:subset_val_size]
-val_subset = Subset(val_dataset, random_indices)
-
-train_dataloader = DataLoader(train_subset, batch_size=2, shuffle=True, num_workers=2)
-val_dataloader = DataLoader(val_subset, batch_size=2, shuffle=False, num_workers=2)
+train_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=2)
 
 # =====================
 # Model, Loss, Optimizer
