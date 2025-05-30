@@ -94,46 +94,39 @@ class STDC_Seg(nn.Module):
 
         if backbone == 'STDC1':
             self.backbone = STDCNet813()
-            feat_channels = [64, 256, 512]  # feat2, feat4, feat8
+            feat_channels = [64, 256, 512, 1024, 1024]
         elif backbone == 'STDC2':
             self.backbone = STDCNet1446()
-            feat_channels = [64, 512, 1024]
+            feat_channels = [64, 512, 1024, 2048, 2048]
         else:
             raise ValueError("Invalid backbone")
 
-        # Attention Refinement Module (ARM)
-        self.arm16 = AttentionRefinementModule(feat_channels[2], feat_channels[2])  # feat8 -> feat4 size
-        self.arm32 = AttentionRefinementModule(feat_channels[1], feat_channels[1])  # feat4 -> feat2 size
+        # Use feat4 and feat8 (not feat16) for ARM to match sizes
+        self.arm8 = AttentionRefinementModule(feat_channels[2], feat_channels[2])
+        self.arm4 = AttentionRefinementModule(feat_channels[1], feat_channels[1])
 
-        # Segmentation head
-        self.seg_head = SegHead(feat_channels[0], 64, num_classes)
+        self.fusion = FeatureFusionModule(
+            num_classes=num_classes,
+            in_channels=feat_channels[0] + feat_channels[1]
+        )
 
-        # Detail guidance
+        self.seg_head = SegHead(in_channels=num_classes, mid_channels=64, num_classes=num_classes)
+
         if self.use_detail:
             self.detail_head = DetailHead(feat_channels[0])
             self.detail_upsample = nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True)
 
-        # Feature fusion
-        self.fusion = FeatureFusionModule(num_classes=num_classes,
-                                          in_channels=feat_channels[0] + feat_channels[0])  # feat2 + upsampled context
-
-        # Upsampling final prediction to input size
         self.final_upsample = nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True)
 
     def forward(self, x):
-        feat2, feat4, feat8, *_ = self.backbone(x)
+        feat2, feat4, feat8, feat16, feat32 = self.backbone(x)
 
-        # Apply ARM to context path
-        context16 = self.arm16(feat8)           # Output: same channel as feat4
-        context8 = F.interpolate(context16, size=feat4.size()[2:], mode='bilinear', align_corners=True)
+        context8 = self.arm8(feat8)
+        context4 = F.interpolate(context8, size=feat4.size()[2:], mode='bilinear', align_corners=True)
+        context4 = self.arm4(context4)
+        context2 = F.interpolate(context4, size=feat2.size()[2:], mode='bilinear', align_corners=True)
 
-        context8 = self.arm32(context8)         # Output: same channel as feat2
-        context8_up = F.interpolate(context8, size=feat2.size()[2:], mode='bilinear', align_corners=True)
-
-        # Feature Fusion (context + spatial)
-        fused = self.fusion(feat2, context8_up)
-
-        # Final segmentation
+        fused = self.fusion(feat2, context2)
         out = self.seg_head(fused)
         out = self.final_upsample(out)
 
@@ -147,7 +140,7 @@ class STDC_Seg(nn.Module):
 
 
 if __name__ == "__main__":
-    model = STDC_Seg(num_classes=19, backbone='STDC2')
+    model = STDC_Seg(num_classes=19, backbone='STDC1', use_detail=True)
     inp = torch.randn(1, 3, 512, 1024)
     out = model(inp)
     if isinstance(out, tuple):
