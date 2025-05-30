@@ -15,7 +15,7 @@ from tqdm import tqdm
 #from monai.losses import DiceLoss
 from datasets.cityscapes import CityScapes
 from models.bisenet.build_bisenet import BiSeNet
-from models.bisenet.build_contextpath import build_contextpath
+from extension.stdc_model import STDC_Seg
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
 from utils import poly_lr_scheduler
 
@@ -104,53 +104,63 @@ val_dataloader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_worke
 # =====================
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
-# Costruisci context path e BiSeNet in modo modulare
-context_path = build_contextpath(
-    name='resnet18',
-)
-
-model = BiSeNet(num_classes=19, context_path='resnet18').cuda()
+model = STDC_Seg(num_classes=19, backbone='STDC2', use_detail=True)
 
 class_weights = torch.tensor([
     2.6, 6.9, 3.5, 3.6, 3.6, 3.8, 3.4, 3.5, 5.1, 4.7,
     6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
 ], dtype=torch.float).to(device)
 
-criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
-#dice_loss = DiceLoss(to_onehot_y=True, softmax=True)
-optimizer = torch.optim.SGD(model.parameters(), lr=2.5e-2, weight_decay=1e-4, momentum=0.9)
+criterion = nn.CrossEntropyLoss(weight=class_weights)
+optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
 
 num_epochs = 50
 max_iter = num_epochs
 
-# =====================
-# Training & Validation
-# =====================
-def train(epoch, model, train_loader, criterion, optimizer, init_lr):
+# 💡 Funzione per la detail loss (BCE + Dice)
+def detail_loss(pred, target):
+    bce = nn.BCEWithLogitsLoss()(pred, target)
+    pred = torch.sigmoid(pred)
+    smooth = 1.0
+    intersection = (pred * target).sum()
+    dice = (2. * intersection + smooth) / (pred.sum() + target.sum() + smooth)
+    return bce + (1 - dice)
+
+
+# 💡 Funzione per creare la mappa dei dettagli (da ground truth seg)
+def get_detail_target(seg):
+    laplacian = torch.tensor([[0, 1, 0], [1, -4, 1], [0, 1, 0]],
+                             dtype=torch.float32, device=seg.device).view(1, 1, 3, 3)
+    edges = torch.nn.functional.conv2d(seg.float().unsqueeze(1), laplacian, padding=1)
+    return (edges.abs() > 0).float()
+
+
+def train(epoch, model, train_loader, criterion, optimizer, init_lr, λ=1.0):
     model.train()
-    
+
     running_loss = 0.0
     batch_idx = 0
     loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}")
     current_iter = epoch
     poly_lr_scheduler(optimizer, init_lr, current_iter, max_iter)
+    seg_loss_fn = criterion
 
     for batch_idx, (inputs, targets) in loop:
         inputs, targets = inputs.to(device), targets.to(device)
 
         optimizer.zero_grad()
-        outputs = model(inputs)
-        alpha = 1
-        if isinstance(outputs, (tuple, list)) and len(outputs) == 3:
-            main_out, aux1_out, aux2_out = outputs
-            loss = (
-                criterion(main_out, targets)
-                + alpha * criterion(aux1_out, targets)
-                + alpha * criterion(aux2_out, targets)
-            )
+        output = model(inputs)
+
+        if isinstance(output, tuple):  # con detail head
+            seg_out, detail_map = output
+            loss_seg = seg_loss_fn(seg_out, targets)
+
+            detail_target = get_detail_target(targets)
+            loss_detail = detail_loss(detail_map, detail_target)
+
+            loss = loss_seg + λ * loss_detail
         else:
-            loss = criterion(outputs, targets)
+            loss = seg_loss_fn(output, targets)
 
         loss.backward()
         optimizer.step()
@@ -185,9 +195,6 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
 
     return mean_loss
 
-
-
- 
 CITYSCAPES_COLORS = [
     (128, 64,128), (244, 35,232), ( 70, 70, 70), (102,102,156),
     (190,153,153), (153,153,153), (250,170, 30), (220,220,  0),
@@ -302,12 +309,12 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
-    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet.pth')
-    var_model = "bisenet" 
+    checkpoint_path = os.path.join(save_dir, 'checkpoint_extension.pth')
+    var_model = "STDC2"
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}provabisenet"
+    project_name = f"{var_model}provaextension"
 
     # 🔹 Ripristina da checkpoint locale se esiste
     if os.path.exists(checkpoint_path):
@@ -331,7 +338,6 @@ def main():
     for epoch in range(start_epoch, num_epochs + 1):
         # Training
         train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
-        
         # Validation and Metrics
         val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
         save_metrics_on_wandb(epoch, train_loss, val_metrics)
@@ -352,3 +358,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
