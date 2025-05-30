@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from extension.stdcnet import STDCNet813, STDCNet1446
+from stdcnet import STDCNet813, STDCNet1446
 
 
 class SegHead(nn.Module):
