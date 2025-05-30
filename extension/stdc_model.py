@@ -125,7 +125,7 @@ class STDC_Seg(nn.Module):
         self.final_upsample = nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True)
 
     def forward(self, x):
-        feat2, feat4, feat8 = self.backbone(x)
+        feat2, feat4, feat8, *_ = self.backbone(x)
 
         # Apply ARM to context path
         context16 = self.arm16(feat8)           # Output: same channel as feat4
