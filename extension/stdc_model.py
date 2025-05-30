@@ -92,7 +92,7 @@ class FeatureFusionModule(torch.nn.Module):
         return x
 
 class STDC_Seg(nn.Module):
-    def __init__(self, num_classes=19, backbone='STDC1', use_detail=True):
+    def __init__(self, num_classes=19, backbone='STDC2', use_detail=True):
         super(STDC_Seg, self).__init__()
         self.use_detail = use_detail
 
@@ -106,8 +106,8 @@ class STDC_Seg(nn.Module):
             raise ValueError("Invalid backbone")
 
         # Attention Refinement Module (ARM)
-        self.arm16 = AttentionRefinementModule(feat_channels[2], feat_channels[1])  # feat8 -> feat4 size
-        self.arm32 = AttentionRefinementModule(feat_channels[1], feat_channels[0])  # feat4 -> feat2 size
+        self.arm16 = AttentionRefinementModule(feat_channels[2], feat_channels[2])  # feat8 -> feat4 size
+        self.arm32 = AttentionRefinementModule(feat_channels[1], feat_channels[1])  # feat4 -> feat2 size
 
         # Segmentation head
         self.seg_head = SegHead(feat_channels[0], 64, num_classes)
