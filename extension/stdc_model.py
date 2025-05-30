@@ -92,7 +92,7 @@ class FeatureFusionModule(torch.nn.Module):
         return x
 
 class STDC_Seg(nn.Module):
-    def __init__(self, num_classes=19, backbone='STDC2', use_detail=True):
+    def __init__(self, num_classes=19, backbone='STDC1', use_detail=True):
         super(STDC_Seg, self).__init__()
         self.use_detail = use_detail
 

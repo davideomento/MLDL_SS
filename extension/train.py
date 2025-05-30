@@ -102,7 +102,7 @@ val_dataloader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_worke
 # =====================
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model = STDC_Seg(num_classes=19, backbone='STDC2', use_detail=True).to(device)
+model = STDC_Seg(num_classes=19, backbone='STDC1', use_detail=True).to(device)
 
 class_weights = torch.tensor([
     2.6, 6.9, 3.5, 3.6, 3.6, 3.8, 3.4, 3.5, 5.1, 4.7,
@@ -308,7 +308,7 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
     checkpoint_path = os.path.join(save_dir, 'checkpoint_extension.pth')
-    var_model = "STDC2"
+    var_model = "STDC1"
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
