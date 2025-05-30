@@ -3,18 +3,16 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
-import pandas as pd
-import torch
+fimport torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 import wandb
 from torchvision.transforms import functional as F
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 #from monai.losses import DiceLoss
 from cityscapes import CityScapes
-from models.bisenet.build_bisenet import BiSeNet
 from extension.stdc_model import STDC_Seg
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
 from utils import poly_lr_scheduler
