@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
 #from monai.losses import DiceLoss
-from datasets.cityscapes import CityScapes
+from cityscapes import CityScapes
 from models.bisenet.build_bisenet import BiSeNet
 from extension.stdc_model import STDC_Seg
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
