@@ -49,7 +49,7 @@ print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir_train = '/content/MLDL_SS/GTA5'
 data_dir_val = '/content/MLDL_SS/Cityscapes/Cityspaces'    
-save_dir = os.path.join(base_path, 'checkpoints_augmentation_jitter_saturation_blur')
+save_dir = os.path.join(base_path, 'checkpoints_augmentation_jitter_bright_saturation_noise_blur')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -334,7 +334,7 @@ def main():
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}_3b_jitter_saturation_blur"
+    project_name = f"{var_model}_3b_jitter_saturation_blur_bright_noflip"
 
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
