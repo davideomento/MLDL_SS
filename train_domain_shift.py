@@ -46,7 +46,7 @@ print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir_train = '/content/MLDL_SS/GTA5'
 data_dir_val = '/content/MLDL_SS/Cityscapes/Cityspaces'    
-save_dir = os.path.join(base_path, 'checkpoints_provadversarial')
+save_dir = os.path.join(base_path, 'checkpoints_adversarial')
 os.makedirs(save_dir, exist_ok=True)
 
 
