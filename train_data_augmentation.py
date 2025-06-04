@@ -76,7 +76,6 @@ class LabelTransform:
 
 
 ###############
-
 # Trasformazione per l'immagine
 img_transform_gta = A.Compose([
         A.Resize(720, 1280),
