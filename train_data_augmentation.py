@@ -49,7 +49,7 @@ print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir_train = '/content/MLDL_SS/GTA5'
 data_dir_val = '/content/MLDL_SS/Cityscapes/Cityspaces'    
-save_dir = os.path.join(base_path, 'checkpoints_augmentation_jitter_bright_saturation_noise_blur')
+save_dir = os.path.join(base_path, 'checkpoints_augmentation_jitter_saturation_blur')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -81,12 +81,12 @@ img_transform_gta = A.Compose([
         A.Resize(720, 1280),
 
         #A.RandomResizedCrop(height=720, width=1280, scale=(0.8, 1.0), ratio=(1.7, 2.3)),
-        #A.HorizontalFlip(p=0.5),
+        A.HorizontalFlip(p=0.5),
         A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5),
         A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0), p=0.5),
         #A.GaussNoise(var_limit=(10.0, 50.0), p=0.5),
         #A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, p=0.5),
-        A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),  # Low intensity
+        #A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),  # Low intensity
         A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=10, val_shift_limit=10, p=0.5),  # Subtle color variation
         A.Normalize(mean=[0.485, 0.456, 0.406], 
                     std=[0.229, 0.224, 0.225]),
@@ -334,7 +334,7 @@ def main():
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}_3b_jitter_saturation_blur_bright_noflip"
+    project_name = f"{var_model}_3b_jitter_saturation_blur"
 
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
