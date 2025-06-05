@@ -48,9 +48,10 @@ set_seed(42)
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir_train = '/content/MLDL_SS/GTA5'
-data_dir_val = '/content/MLDL_SS/Cityscapes/Cityspaces'    
-save_dir = os.path.join(base_path, 'checkpoints_augmentation_jitter_saturation_blur_bright_noflip')
+data_dir_val = '/content/MLDL_SS/sCityscapes/Cityspaces'    
+save_dir = os.path.join(base_path, 'checkpoints_augmentation_jitter_saturation_blur_bright_noflip')#RICORDA NOFILP E L'ALTRO SONO IVERTITI
 os.makedirs(save_dir, exist_ok=True)
+
 
 
 # =====================
