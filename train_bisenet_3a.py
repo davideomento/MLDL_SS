@@ -365,51 +365,7 @@ def main():
     # Validazione finale
     validate(model, val_dataloader, criterion)
 
-    # Esegui il grafico delle metriche salvate
-    plot_metrics(metrics_data)
 
-def plot_metrics(metrics_data):
-    # Funzione per plottare le metriche nel tempo
-    df = pd.DataFrame(metrics_data)
-
-    plt.figure(figsize=(12, 6))
-    plt.plot(df['epoch'], df['val_loss'], label='Validation Loss')
-    plt.plot(df['epoch'], df['train_loss'], label='Train Loss', linestyle='--')
-    plt.title('Loss over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    plt.figure(figsize=(12, 6))
-    plt.plot(df['epoch'], df['val_accuracy'], label='Validation Accuracy')
-    plt.title('Accuracy over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy (%)')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    plt.figure(figsize=(12, 6))
-    plt.plot(df['epoch'], df['miou'], label='mIoU')
-    plt.title('Mean IoU over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('mIoU')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    # Plot della IoU per classe (opzionale)
-    iou_per_class = np.array(df['iou_per_class'].tolist())
-    for i in range(iou_per_class.shape[1]):
-        plt.plot(df['epoch'], iou_per_class[:, i], label=f'Class {i}')
-    plt.title('IoU per Class over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('IoU')
-    plt.legend(loc='upper left')
-    plt.grid(True)
-    plt.show()
 
 
 

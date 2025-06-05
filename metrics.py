@@ -9,6 +9,7 @@ from models.deeplabv2.deeplabv2 import get_deeplab_v2
 import os
 from models.bisenet.build_bisenet import BiSeNet
 import wandb
+from fvcore.nn import FlopCountAnalysis
 
 
 # ================================
