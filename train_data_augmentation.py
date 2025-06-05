@@ -338,7 +338,7 @@ def main():
 
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(wcheckpoint['model_state'])
+        model.load_state_dict(checkpoint['model_state'])
         optimizer.load_state_dict(checkpoint['optimizer_state'])
         best_miou = checkpoint['best_miou']
         start_epoch = checkpoint['epoch'] + 1
