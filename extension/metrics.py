@@ -7,8 +7,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import wandb
-from fvcore.nn import FlopCountAnalysis
-
 
 # ================================
 # Ambiente (Colab)

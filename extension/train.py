@@ -112,13 +112,12 @@ class_weights = torch.tensor([
 ], dtype=torch.float).to(device)
 
 criterion = nn.CrossEntropyLoss(weight=class_weights)
-detail_criterion = DetailLoss() 
 optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
 
 num_epochs = 50
 max_iter = num_epochs
 
-# 💡 Funzione per la detail loss (BCE + Dice)   VEDI QUALE TENERE CON QUELLE CHE HAI MESSO TU IN STDC_MODEL
+# 💡 Funzione per la detail loss (BCE + Dice)
 def detail_loss(pred, target):
     bce = nn.BCEWithLogitsLoss()(pred, target)
     pred = torch.sigmoid(pred)
@@ -126,6 +125,7 @@ def detail_loss(pred, target):
     intersection = (pred * target).sum()
     dice = (2. * intersection + smooth) / (pred.sum() + target.sum() + smooth)
     return bce + (1 - dice)
+
 
 # 💡 Funzione per creare la mappa dei dettagli (da ground truth seg)
 def get_detail_target(seg):
