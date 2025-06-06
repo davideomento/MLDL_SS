@@ -101,7 +101,7 @@ class STDC_Seg(nn.Module):
 
         if backbone == 'STDC1':
             self.backbone = STDCNet813()
-            feat_channels = [64, 256, 512, 1024, 1024]
+            feat_channels = [64, 256, 256, 512, 1024]
         elif backbone == 'STDC2':
             self.backbone = STDCNet1446()
             feat_channels = [64, 512, 1024, 2048, 2048]
@@ -109,12 +109,13 @@ class STDC_Seg(nn.Module):
             raise ValueError("Invalid backbone")
 
         # Use feat4 and feat8 (not feat16) for ARM to match sizes
-        self.arm8 = AttentionRefinementModule(feat_channels[2], feat_channels[2])
-        self.arm4 = AttentionRefinementModule(feat_channels[1], feat_channels[1])
+        self.arm8 = AttentionRefinementModule(feat_channels[2], feat_channels[2])  # ora [256, 256]
+        self.arm4 = AttentionRefinementModule(feat_channels[1], feat_channels[1])  # [256, 256]
+
 
         self.fusion = FeatureFusionModule(
             num_classes=num_classes,
-            in_channels=feat_channels[0] + feat_channels[1]
+            in_channels=feat_channels[0] + feat_channels[1]  # [64 + 256 = 320]
         )
 
         self.seg_head = SegHead(in_channels=num_classes, mid_channels=64, num_classes=num_classes)
