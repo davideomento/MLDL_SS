@@ -54,7 +54,7 @@ class LabelTransform():
         self.size = size
 
     def __call__(self, mask):
-        mask = F.resize(mask, self.size, interpolation=Image.NEAREST)
+        mask = TF.resize(mask, self.size, interpolation=Image.NEAREST)
         return torch.as_tensor(mask, dtype=torch.long)          
 
 ###############
