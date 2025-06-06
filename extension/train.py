@@ -115,7 +115,7 @@ class_weights = torch.tensor([
     6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
 ], dtype=torch.float).to(device)
 
-criterion = nn.CrossEntropyLoss(weight=class_weights)
+criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
 optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
 
 num_epochs = 50
@@ -133,10 +133,23 @@ def detail_loss(pred, target):
 
 # 💡 Funzione per creare la mappa dei dettagli (da ground truth seg)
 def get_detail_target(seg):
-    laplacian = torch.tensor([[0, 1, 0], [1, -4, 1], [0, 1, 0]],
-                             dtype=torch.float32, device=seg.device).view(1, 1, 3, 3)
-    edges = torch.nn.functional.conv2d(seg.float().unsqueeze(1), laplacian, padding=1)
-    return (edges.abs() > 0).float()
+    # seg: [B, H, W] con classi 0..18
+    B, H, W = seg.shape
+    num_classes = 19
+    
+    # One-hot encoding
+    one_hot = torch.nn.functional.one_hot(seg, num_classes=num_classes)  # [B, H, W, C]
+    one_hot = one_hot.permute(0, 3, 1, 2).float()  # [B, C, H, W]
+    
+    laplacian = torch.tensor([[0, 1, 0],
+                              [1, -4, 1],
+                              [0, 1, 0]], dtype=torch.float32, device=seg.device).view(1,1,3,3)
+    
+    edges = torch.nn.functional.conv2d(one_hot, laplacian, padding=1, groups=num_classes)
+    
+    edge_map = (edges.abs().sum(dim=1, keepdim=True) > 0).float()  # [B,1,H,W]
+    
+    return edge_map.squeeze(1)  # [B, H, W]
 
 
 def train(epoch, model, train_loader, criterion, optimizer, init_lr, λ=1.0):
