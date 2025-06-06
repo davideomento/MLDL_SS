@@ -98,6 +98,7 @@ class STDC_Seg(nn.Module):
     def __init__(self, num_classes=19, backbone='STDC1', use_detail=True):
         super(STDC_Seg, self).__init__()
         self.use_detail = use_detail
+        self.num_classes = num_classes
 
         if backbone == 'STDC1':
             self.backbone = STDCNet813()
@@ -108,15 +109,11 @@ class STDC_Seg(nn.Module):
         else:
             raise ValueError("Invalid backbone")
 
-        # Use feat4 and feat8 (not feat16) for ARM to match sizes
-        self.arm8 = AttentionRefinementModule(feat_channels[2], feat_channels[2])  # ora [256, 256]
-        self.arm4 = AttentionRefinementModule(feat_channels[1], feat_channels[1])  # [256, 256]
+        self.feat_channels = feat_channels
+        self.arm8 = AttentionRefinementModule(feat_channels[2], feat_channels[2])
+        self.arm4 = AttentionRefinementModule(feat_channels[1], feat_channels[1])
 
-
-        self.fusion = FeatureFusionModule(
-            num_classes=num_classes,
-            in_channels=feat_channels[0] + feat_channels[1]  # [64 + 256 = 320]
-        )
+        self.fusion = None  # inizializzata dinamicamente nel primo forward()
 
         self.seg_head = SegHead(in_channels=num_classes, mid_channels=64, num_classes=num_classes)
 
@@ -134,9 +131,17 @@ class STDC_Seg(nn.Module):
         context4 = self.arm4(context4)
         context2 = F.interpolate(context4, size=feat2.size()[2:], mode='bilinear', align_corners=True)
 
+        # Inizializza dinamicamente FeatureFusionModule se non ancora fatto
+        if self.fusion is None:
+            in_channels = feat2.size(1) + context2.size(1)
+            self.fusion = FeatureFusionModule(
+                num_classes=self.num_classes,
+                in_channels=in_channels
+            ).to(x.device)
+
         fused = self.fusion(feat2, context2)
         out = self.seg_head(fused)
-        out = self.final_upsample(out) #per riportare la mappa segmentazione finale a dimensioni originali immagine (moltiplica per 8).
+        out = self.final_upsample(out)
 
         if self.use_detail:
             detail = self.detail_head(feat2)
@@ -144,7 +149,6 @@ class STDC_Seg(nn.Module):
             return out, detail
 
         return out
-
 
 
 if __name__ == "__main__":
