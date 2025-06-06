@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from stdcnet import STDCNet813, STDCNet1446
 
 
+#Prende feature con in_channels canali, fa una conv 3x3, poi norm e poi ReLU. Poi conv 1x1 per ridurre a num_classes canali
+#Quindi output è di dimensione [B, num_classes, H, W]
 class SegHead(nn.Module):
     def __init__(self, in_channels, mid_channels, num_classes):
         super(SegHead, self).__init__()
@@ -17,7 +19,7 @@ class SegHead(nn.Module):
     def forward(self, x):
         return self.block(x)
 
-
+#Estrae una detail map (un singolo canale)
 class DetailHead(nn.Module):
     def __init__(self, in_channels):
         super(DetailHead, self).__init__()
@@ -31,6 +33,7 @@ class DetailHead(nn.Module):
     def forward(self, x):
         return self.detail(x)
 
+#Conv 2D + BatchNorm + ReLU 
 class ConvBlock(torch.nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=2, padding=1):
         super().__init__()
@@ -42,7 +45,9 @@ class ConvBlock(torch.nn.Module):
     def forward(self, input):
         x = self.conv1(input)
         return self.relu(self.bn(x))
-    
+
+#Raffina le feature con l'attenzione: calcola la media spaziale di ogni canale (vettore di dim [B,C]) e poi lo passa a conv 1x1 + BatchNorm + Sigmoid per ottenere pesi per canale tra 0 e 1.
+# Moltiplica l'input per questi pesi, cioè aumenta o diminuisce l'importanza di ogni canale in base alla sua media spaziale. 
 class AttentionRefinementModule(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -59,7 +64,9 @@ class AttentionRefinementModule(nn.Module):
         return input * x              # Broadcasting will match channels automatically
 
 
-
+#Fonde due feature map (dettaglio + contesto), concatena i canali delle due feature poi conv 3x3 + BN + ReLU senza stride per mantenere dimensioni.
+# Calcola attenzione canale con conv 1x1, relu, conv 1x1, sigmoid come pesi.
+# Moltiplica le feature per pesi di attenzione e aggiunge residual connection (somma le feature originali). Restituisce feature fuse e “rafforzate”.
 class FeatureFusionModule(torch.nn.Module):
     def __init__(self, num_classes, in_channels):
         super().__init__()
@@ -128,7 +135,7 @@ class STDC_Seg(nn.Module):
 
         fused = self.fusion(feat2, context2)
         out = self.seg_head(fused)
-        out = self.final_upsample(out)
+        out = self.final_upsample(out) #per riportare la mappa segmentazione finale a dimensioni originali immagine (moltiplica per 8).
 
         if self.use_detail:
             detail = self.detail_head(feat2)
