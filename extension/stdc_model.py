@@ -21,7 +21,7 @@ class SegHead(nn.Module):
 
 #Estrae una detail map (un singolo canale)
 class DetailHead(nn.Module):
-    def __init__(self, in_channels):
+    def __init__(self, in_channels=32):  # Imposta default a 32
         super(DetailHead, self).__init__()
         self.detail = nn.Sequential(
             nn.Conv2d(in_channels, 64, 3, padding=1),
@@ -118,7 +118,8 @@ class STDC_Seg(nn.Module):
         self.seg_head = SegHead(in_channels=num_classes, mid_channels=64, num_classes=num_classes)
 
         if self.use_detail:
-            self.detail_head = DetailHead(feat_channels[0])
+            #self.detail_head = DetailHead(feat_channels[0]) TATANDRE
+            self.detail_head= DetailHead(in_channels=32)  # Imposta in_channels a 32 come default
             self.detail_upsample = nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True)
 
         self.final_upsample = nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True)
