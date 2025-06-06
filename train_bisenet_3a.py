@@ -182,7 +182,7 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
         "epoch": epoch,
         "loss": mean_loss,
         "lr": lr
-    })
+    },step=epoch)
 
     model_save_path = f"model_epoch_{epoch}.pt"
     torch.save({
