@@ -21,7 +21,7 @@ class SegHead(nn.Module):
 
 #Estrae una detail map (un singolo canale)
 class DetailHead(nn.Module):
-    def __init__(self, in_channels=32):  # Imposta default a 32
+    def __init__(self, in_channels): 
         super(DetailHead, self).__init__()
         self.detail = nn.Sequential(
             nn.Conv2d(in_channels, 64, 3, padding=1),
@@ -31,7 +31,33 @@ class DetailHead(nn.Module):
         )
 
     def forward(self, x):
-        return self.detail(x)
+        return self.detail(x)  # (B, 1, H, W)
+    
+class DetailLoss(nn.Module):
+    def __init__(self, eps=1.0):
+        super(DetailLoss, self).__init__()
+        self.eps = eps
+        self.bce = nn.BCEWithLogitsLoss()
+
+    def forward(self, pred, target):
+        pred = pred.squeeze(1)
+        target = target.squeeze(1)
+
+        intersection = (pred * target).sum()
+        union = pred.pow(2).sum() + target.pow(2).sum()
+
+        dice = 1 - (2 * intersection + self.eps) / (union + self.eps)
+        bce = self.bce(pred, target)
+        return dice + bce
+    
+    
+def compute_detail_gt(gt):
+    kernel = torch.tensor([[0, 1, 0], [1, -4, 1], [0, 1, 0]], dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+    kernel = kernel.to(gt.device)
+    gt = gt.float().unsqueeze(1)  # (B, 1, H, W)
+    edge = F.conv2d(gt, kernel, padding=1)
+    edge = (edge != 0).float()
+    return edge
 
 #Conv 2D + BatchNorm + ReLU 
 class ConvBlock(torch.nn.Module):
