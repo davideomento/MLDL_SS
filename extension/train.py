@@ -8,10 +8,13 @@ import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 import wandb
-from torchvision.transforms import functional as F
+from torchvision.transforms import functional as TF
+from torchvision.transforms.functional import InterpolationMode
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from stdc_model import *
+
+
 
 #from monai.losses import DiceLoss
 from cityscapes import CityScapes
@@ -66,7 +69,8 @@ img_transform = transforms.Compose([
 
 # Trasformazione per la mask (solo resize, no toTensor, no normalize)
 def mask_transform(mask):
-    return F.resize(mask, (512, 1024), interpolation=F.InterpolationMode.NEAREST)
+    return TF.resize(mask, (512, 1024), interpolation=InterpolationMode.NEAREST)
+
 
 def get_transforms():
     return {
