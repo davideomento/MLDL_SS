@@ -166,22 +166,28 @@ class STDC_Seg(nn.Module):
         self.final_upsample = nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True)
 
     def forward(self, x):
+        # estrai feature a diverse scale dal backbone
         feat2, feat4, feat8, feat16, feat32 = self.backbone(x)
 
-        context8 = self.arm8(feat8)
-        context4 = F.interpolate(context8, size=feat4.size()[2:], mode='bilinear', align_corners=True)
-        context4 = self.arm4(context4)
-        context2 = F.interpolate(context4, size=feat2.size()[2:], mode='bilinear', align_corners=True)
+        # passo ARM sulle feature originali (senza mischiarle)
+        context8 = self.arm8(feat8)  # input: 256 canali, output: 256 canali
+        context4 = self.arm4(feat4)  # input: 64 canali, output: 64 canali
 
-        # Inizializza dinamicamente FeatureFusionModule se non ancora fatto
+        # aumento la risoluzione di context8 a quella di context4
+        context8_up = F.interpolate(context8, size=context4.shape[2:], mode='bilinear', align_corners=True)
+
+        # concateno le due feature lungo la dimensione canali
+        fusion_input = torch.cat([context4, context8_up], dim=1)  # 64 + 256 = 320 canali
+
+        # se la fusion module aspetta un numero specifico di canali, usa conv 1x1 per uniformare
         if self.fusion is None:
-            in_channels = feat2.size(1) + context2.size(1)
+            in_channels = fusion_input.size(1)
             self.fusion = FeatureFusionModule(
                 num_classes=self.num_classes,
                 in_channels=in_channels
             ).to(x.device)
 
-        fused = self.fusion(feat2, context2)
+        fused = self.fusion(feat2, fusion_input)  # attenzione, qui puoi decidere cosa passare esattamente
         out = self.seg_head(fused)
         out = self.final_upsample(out)
 
@@ -191,6 +197,7 @@ class STDC_Seg(nn.Module):
             return out, detail
 
         return out
+
 
 
 if __name__ == "__main__":
