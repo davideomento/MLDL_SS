@@ -179,6 +179,9 @@ class STDC_Seg(nn.Module):
         # concateno le due feature lungo la dimensione canali
         fusion_input = torch.cat([context4, context8_up], dim=1)  # 64 + 256 = 320 canali
 
+        # Portare fusion_input alla dimensione di feat2, altrimenti non si può concatenare in fused sotto
+        fusion_input = F.interpolate(fusion_input, size=feat2.shape[2:], mode='bilinear', align_corners=True)
+        
         # se la fusion module aspetta un numero specifico di canali, usa conv 1x1 per uniformare
         if self.fusion is None:
             in_channels = fusion_input.size(1)
