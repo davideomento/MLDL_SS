@@ -184,7 +184,7 @@ class STDC_Seg(nn.Module):
         
         # se la fusion module aspetta un numero specifico di canali, usa conv 1x1 per uniformare
         if self.fusion is None:
-            in_channels = fusion_input.size(1)
+            in_channels = in_channels = feat2.size(1) + fusion_input.size(1)
             self.fusion = FeatureFusionModule(
                 num_classes=self.num_classes,
                 in_channels=in_channels
