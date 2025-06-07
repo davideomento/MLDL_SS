@@ -167,6 +167,11 @@ class STDC_Seg(nn.Module):
 
     def forward(self, x):
         feat2, feat4, feat8, feat16, feat32 = self.backbone(x)
+        print(f"feat2 shape: {feat2.shape}")
+        print(f"feat4 shape: {feat4.shape}")
+        print(f"feat8 shape: {feat8.shape}")
+        print(f"feat16 shape: {feat16.shape}")
+        print(f"feat32 shape: {feat32.shape}")
 
         context8 = self.arm8(feat8)
         context4 = F.interpolate(context8, size=feat4.size()[2:], mode='bilinear', align_corners=True)
