@@ -42,22 +42,38 @@ class DetailLoss(nn.Module):
     def forward(self, pred, target):
         pred = pred.squeeze(1)
         target = target.squeeze(1)
+        bce = self.bce(pred, target) # BCE with logits (no need for sigmoid)
+        pred_sigmoid = torch.sigmoid(pred)
 
-        intersection = (pred * target).sum()
-        union = pred.pow(2).sum() + target.pow(2).sum()
+        intersection = (pred_sigmoid * target).sum()
+        union = pred_sigmoid.pow(2).sum() + target.pow(2).sum()
 
         dice = 1 - (2 * intersection + self.eps) / (union + self.eps)
-        bce = self.bce(pred, target)
         return dice + bce
     
     
-def compute_detail_gt(gt):
-    kernel = torch.tensor([[0, 1, 0], [1, -4, 1], [0, 1, 0]], dtype=torch.float32).unsqueeze(0).unsqueeze(0)
-    kernel = kernel.to(gt.device)
-    gt = gt.float().unsqueeze(1)  # (B, 1, H, W)
-    edge = F.conv2d(gt, kernel, padding=1)
-    edge = (edge != 0).float()
-    return edge
+# Calcola la mappa di dettaglio come edge map usando un kernel Laplaciano
+# Il kernel è [[0, 1, 0], [1, -4, 1], [0, 1, 0]] che evidenzia i bordi.
+
+def get_detail_target(seg):
+    # seg: [B, H, W] con classi 0..18
+    B, H, W = seg.shape
+    num_classes = 19
+    
+    # One-hot encoding
+    one_hot = torch.nn.functional.one_hot(seg, num_classes=num_classes)  # [B, H, W, C]
+    one_hot = one_hot.permute(0, 3, 1, 2).float()  # [B, C, H, W]
+    
+    laplacian = torch.tensor([[0, 1, 0],
+                              [1, -4, 1],
+                              [0, 1, 0]], dtype=torch.float32, device=seg.device).view(1,1,3,3)
+    
+    edges = torch.nn.functional.conv2d(one_hot, laplacian, padding=1, groups=num_classes)
+    
+    edge_map = (edges.abs().sum(dim=1, keepdim=True) > 0).float()  # [B,1,H,W]
+    
+    return edge_map.squeeze(1)  # [B, H, W]
+
 
 #Conv 2D + BatchNorm + ReLU 
 class ConvBlock(torch.nn.Module):
@@ -139,13 +155,12 @@ class STDC_Seg(nn.Module):
         self.arm8 = AttentionRefinementModule(feat_channels[2], feat_channels[2])
         self.arm4 = AttentionRefinementModule(feat_channels[1], feat_channels[1])
 
-        self.fusion = None  # inizializzata dinamicamente nel primo forward()
+        self.fusion = None  # inizializzata dinamicamente nel primo forward() TATANDRE
 
         self.seg_head = SegHead(in_channels=num_classes, mid_channels=64, num_classes=num_classes)
 
         if self.use_detail:
-            #self.detail_head = DetailHead(feat_channels[0]) TATANDRE
-            self.detail_head= DetailHead(in_channels=32)  # Imposta in_channels a 32 come default
+            self.detail_head = DetailHead(feat_channels[0]) 
             self.detail_upsample = nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True)
 
         self.final_upsample = nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True)

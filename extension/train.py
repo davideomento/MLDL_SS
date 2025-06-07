@@ -121,35 +121,6 @@ optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_de
 num_epochs = 50
 max_iter = num_epochs
 
-# 💡 Funzione per la detail loss (BCE + Dice)
-def detail_loss(pred, target):
-    bce = nn.BCEWithLogitsLoss()(pred, target)
-    pred = torch.sigmoid(pred)
-    smooth = 1.0
-    intersection = (pred * target).sum()
-    dice = (2. * intersection + smooth) / (pred.sum() + target.sum() + smooth)
-    return bce + (1 - dice)
-
-
-# 💡 Funzione per creare la mappa dei dettagli (da ground truth seg)
-def get_detail_target(seg):
-    # seg: [B, H, W] con classi 0..18
-    B, H, W = seg.shape
-    num_classes = 19
-    
-    # One-hot encoding
-    one_hot = torch.nn.functional.one_hot(seg, num_classes=num_classes)  # [B, H, W, C]
-    one_hot = one_hot.permute(0, 3, 1, 2).float()  # [B, C, H, W]
-    
-    laplacian = torch.tensor([[0, 1, 0],
-                              [1, -4, 1],
-                              [0, 1, 0]], dtype=torch.float32, device=seg.device).view(1,1,3,3)
-    
-    edges = torch.nn.functional.conv2d(one_hot, laplacian, padding=1, groups=num_classes)
-    
-    edge_map = (edges.abs().sum(dim=1, keepdim=True) > 0).float()  # [B,1,H,W]
-    
-    return edge_map.squeeze(1)  # [B, H, W]
 
 
 def train(epoch, model, train_loader, criterion, optimizer, init_lr, λ=1.0):
@@ -174,7 +145,7 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr, λ=1.0):
             loss_seg = seg_loss_fn(seg_out, targets)
 
             detail_target = get_detail_target(targets)
-            loss_detail = detail_loss(detail_map, detail_target)
+            loss_detail = DetailLoss(detail_map, detail_target)
 
             loss = loss_seg + λ * loss_detail
         else:
