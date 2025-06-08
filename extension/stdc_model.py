@@ -207,6 +207,12 @@ class STDC_Seg(nn.Module):
         self.arm16 = AttentionRefinementModule(feat_channels[3], feat_channels[3])
         self.context16_conv = nn.Conv2d(feat_channels[3], feat_channels[2], kernel_size=1, bias=False) # Aggiunta per adattare i canali da 512 → 256
         self.sppm = SPPM(in_channels=feat_channels[4], out_channels=feat_channels[2])
+        self.global_context_conv = nn.Sequential( 
+            nn.Conv2d(feat_channels[2], 320, kernel_size=1, bias=False),  # per portare global_context_up da 256 -> 320
+            nn.BatchNorm2d(320),
+            nn.ReLU(inplace=True)
+        )
+
         self.fusion = None  # inizializzata dinamicamente nel primo forward() TATANDRE
 
         self.seg_head = SegHead(in_channels=num_classes, mid_channels=64, num_classes=num_classes)
@@ -241,7 +247,9 @@ class STDC_Seg(nn.Module):
         # Opzione B: aggiungo SPPM su feat32 e sommo
         global_context = self.sppm(feat32)
         global_context_up = F.interpolate(global_context, size=fusion_input.shape[2:], mode='bilinear', align_corners=True)
+        global_context_up = self.global_context_conv(global_context_up)  # 🔧 porta da 256 a 320 canali
         fusion_input = fusion_input + global_context_up
+
         
         # se la fusion module aspetta un numero specifico di canali, usa conv 1x1 per uniformare
         if self.fusion is None:
