@@ -205,6 +205,7 @@ class STDC_Seg(nn.Module):
         self.arm8 = AttentionRefinementModule(feat_channels[2], feat_channels[2])
         self.arm4 = AttentionRefinementModule(feat_channels[1], feat_channels[1])
         self.arm16 = AttentionRefinementModule(feat_channels[3], feat_channels[3])
+        self.context16_conv = nn.Conv2d(feat_channels[3], feat_channels[2], kernel_size=1, bias=False) # Aggiunta per adattare i canali da 512 → 256
         self.sppm = SPPM(in_channels=feat_channels[4], out_channels=feat_channels[2])
         self.fusion = None  # inizializzata dinamicamente nel primo forward() TATANDRE
 
@@ -225,6 +226,7 @@ class STDC_Seg(nn.Module):
         context4 = self.arm4(feat4)  # input: 64 canali, output: 64 canali
         context16 = self.arm16(feat16)  # input: 512 canali, output: 512 canali
         context16_up = F.interpolate(context16, size=context8.shape[2:], mode='bilinear', align_corners=True)
+        context16_up = self.context16_conv(context16_up)  # Riduce i canali da 512 a 256
         # Aggiungo feat16 raffinato a context8
         context8 = context8 + context16_up
         # aumento la risoluzione di context8 a quella di context4
