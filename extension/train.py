@@ -222,6 +222,8 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
         for batch_idx, (inputs, targets) in loop:
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = model(inputs)
+            if isinstance(outputs, tuple):
+                outputs = outputs[0]  # usa solo l'output semantico
             loss = criterion(outputs, targets)
 
             val_loss += loss.item()
