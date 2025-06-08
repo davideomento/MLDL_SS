@@ -310,7 +310,7 @@ def main():
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}provaextension"
+    project_name = f"{var_model}prova2_extension"
 
     # 🔹 Ripristina da checkpoint locale se esiste
     if os.path.exists(checkpoint_path):

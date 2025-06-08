@@ -158,6 +158,34 @@ class FeatureFusionModule(torch.nn.Module):
         x = torch.add(x, feature)
         return x
 
+# SPPM semplificato per il contesto globale da feat32
+class SPPM(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.stages = nn.ModuleList([
+            nn.AdaptiveAvgPool2d(output_size=1),
+            nn.AdaptiveAvgPool2d(output_size=2),
+            nn.AdaptiveAvgPool2d(output_size=4)
+        ])
+        self.convs = nn.ModuleList([
+            nn.Conv2d(in_channels, out_channels, 1, bias=False)
+            for _ in range(3)
+        ])
+        self.out_conv = nn.Conv2d(in_channels + 3 * out_channels, out_channels, 1)
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        H, W = x.shape[2:]
+        out = [x]
+        for stage, conv in zip(self.stages, self.convs):
+            pooled = stage(x)
+            conv_out = conv(pooled)
+            upsampled = F.interpolate(conv_out, size=(H, W), mode='bilinear', align_corners=True)
+            out.append(upsampled)
+        out = torch.cat(out, dim=1)
+        return self.relu(self.bn(self.out_conv(out)))
+
 class STDC_Seg(nn.Module):
     def __init__(self, num_classes=19, backbone='STDC1', use_detail=True):
         super(STDC_Seg, self).__init__()
@@ -176,7 +204,8 @@ class STDC_Seg(nn.Module):
         self.feat_channels = feat_channels
         self.arm8 = AttentionRefinementModule(feat_channels[2], feat_channels[2])
         self.arm4 = AttentionRefinementModule(feat_channels[1], feat_channels[1])
-
+        self.arm16 = AttentionRefinementModule(feat_channels[3], feat_channels[3])
+        self.sppm = SPPM(in_channels=feat_channels[4], out_channels=feat_channels[2])
         self.fusion = None  # inizializzata dinamicamente nel primo forward() TATANDRE
 
         self.seg_head = SegHead(in_channels=num_classes, mid_channels=64, num_classes=num_classes)
@@ -194,7 +223,10 @@ class STDC_Seg(nn.Module):
         # passo ARM sulle feature originali (senza mischiarle)
         context8 = self.arm8(feat8)  # input: 256 canali, output: 256 canali
         context4 = self.arm4(feat4)  # input: 64 canali, output: 64 canali
-
+        context16 = self.arm16(feat16)  # input: 512 canali, output: 512 canali
+        context16_up = F.interpolate(context16, size=context8.shape[2:], mode='bilinear', align_corners=True)
+        # Aggiungo feat16 raffinato a context8
+        context8 = context8 + context16_up
         # aumento la risoluzione di context8 a quella di context4
         context8_up = F.interpolate(context8, size=context4.shape[2:], mode='bilinear', align_corners=True)
 
@@ -203,6 +235,11 @@ class STDC_Seg(nn.Module):
 
         # Portare fusion_input alla dimensione di feat2, altrimenti non si può concatenare in fused sotto
         fusion_input = F.interpolate(fusion_input, size=feat2.shape[2:], mode='bilinear', align_corners=True)
+
+        # Opzione B: aggiungo SPPM su feat32 e sommo
+        global_context = self.sppm(feat32)
+        global_context_up = F.interpolate(global_context, size=fusion_input.shape[2:], mode='bilinear', align_corners=True)
+        fusion_input = fusion_input + global_context_up
         
         # se la fusion module aspetta un numero specifico di canali, usa conv 1x1 per uniformare
         if self.fusion is None:
