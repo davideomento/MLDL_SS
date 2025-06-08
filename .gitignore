@@ -3,3 +3,8 @@
 
 # Python
 __pycache__/
+
+#Dataset
+Cityscapes
+GTA5
+deeplabv2_weights.pth
