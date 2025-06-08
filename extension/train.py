@@ -224,6 +224,7 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
             outputs = model(inputs)
             if isinstance(outputs, tuple):
                 outputs = outputs[0]  # usa solo l'output semantico
+            outputs = F.interpolate(outputs, size=targets.shape[-2:], mode='bilinear', align_corners=False)
             loss = criterion(outputs, targets)
 
             val_loss += loss.item()
