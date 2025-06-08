@@ -132,6 +132,7 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr, λ=1.0):
     current_iter = epoch
     poly_lr_scheduler(optimizer, init_lr, current_iter, max_iter)
     seg_loss_fn = criterion
+    detail_criterion = DetailLoss()
 
     for batch_idx, (inputs, targets) in loop:
         inputs, targets = inputs.to(device).float(), targets.to(device).long()
@@ -145,7 +146,7 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr, λ=1.0):
             loss_seg = seg_loss_fn(seg_out, targets)
 
             detail_target = get_detail_target(targets)
-            loss_detail = DetailLoss(detail_map, detail_target)
+            loss_detail = detail_criterion(detail_map, detail_target)
 
             loss = loss_seg + λ * loss_detail
         else:
