@@ -245,9 +245,9 @@ class STDC_Seg(nn.Module):
         fusion_input = F.interpolate(fusion_input, size=feat2.shape[2:], mode='bilinear', align_corners=True)
 
         # Opzione B: aggiungo SPPM su feat32 e sommo
-        global_context = self.sppm(feat32)
+        global_context = self.sppm(feat32) # output: [B, 256, H/8, W/8]
         global_context_up = F.interpolate(global_context, size=fusion_input.shape[2:], mode='bilinear', align_corners=True)
-        global_context_up = self.global_context_conv(global_context_up)  # 🔧 porta da 256 a 320 canali
+        global_context_up = self.global_context_conv(global_context_up)  # da 256 a 320 canali
         fusion_input = fusion_input + global_context_up
 
         
