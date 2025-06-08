@@ -56,23 +56,44 @@ class DetailLoss(nn.Module):
 # Il kernel è [[0, 1, 0], [1, -4, 1], [0, 1, 0]] che evidenzia i bordi.
 
 def get_detail_target(seg):
-    # seg: [B, H, W] con classi 0..18
+    """
+    Genera una mappa dei bordi dai target di segmentazione, ignorando i pixel con valore 255.
+    
+    Args:
+        seg (Tensor): tensore [B, H, W] con classi da 0 a 18, e 255 per i pixel da ignorare.
+    
+    Returns:
+        Tensor: mappa binaria dei bordi [B, H, W], con pixel ignorati esclusi dal calcolo.
+    """
     B, H, W = seg.shape
     num_classes = 19
-    
+    ignore_index = 255
+
+    # Crea una maschera per i pixel validi
+    valid_mask = (seg != ignore_index)  # [B, H, W]
+
+    # Sostituisci i pixel ignorati con una classe valida temporanea (es. 0)
+    seg_clean = seg.clone()
+    seg_clean[~valid_mask] = 0
+
     # One-hot encoding
-    one_hot = torch.nn.functional.one_hot(seg, num_classes=num_classes)  # [B, H, W, C]
+    one_hot = torch.nn.functional.one_hot(seg_clean, num_classes=num_classes)  # [B, H, W, C]
     one_hot = one_hot.permute(0, 3, 1, 2).float()  # [B, C, H, W]
-    
+
+    # Filtro laplaciano
     laplacian = torch.tensor([[0, 1, 0],
                               [1, -4, 1],
-                              [0, 1, 0]], dtype=torch.float32, device=seg.device).view(1,1,3,3)
-    
+                              [0, 1, 0]], dtype=torch.float32, device=seg.device).view(1, 1, 3, 3)
+
+    # Convoluzione separata per ogni classe
     edges = torch.nn.functional.conv2d(one_hot, laplacian, padding=1, groups=num_classes)
-    
+
+    # Somma le risposte assolute e maschera i pixel ignorati
     edge_map = (edges.abs().sum(dim=1, keepdim=True) > 0).float()  # [B,1,H,W]
-    
+    edge_map *= valid_mask.unsqueeze(1).float()  # ignora i pixel 255
+
     return edge_map.squeeze(1)  # [B, H, W]
+
 
 
 #Conv 2D + BatchNorm + ReLU 
