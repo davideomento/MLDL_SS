@@ -65,34 +65,35 @@ def get_detail_target(seg):
     Returns:
         Tensor: mappa binaria dei bordi [B, H, W], con pixel ignorati esclusi dal calcolo.
     """
-    B, H, W = seg.shape
+    #B, H, W = seg.shape
     num_classes = 19
     ignore_index = 255
 
-    # Crea una maschera per i pixel validi
+    # Crea maschera dei pixel validi
     valid_mask = (seg != ignore_index)  # [B, H, W]
 
-    # Sostituisci i pixel ignorati con una classe valida temporanea (es. 0)
+    # Sostituisci i 255 temporaneamente con 0 per evitare errori nell'one-hot
     seg_clean = seg.clone()
     seg_clean[~valid_mask] = 0
 
-    # One-hot encoding
-    one_hot = torch.nn.functional.one_hot(seg_clean, num_classes=num_classes)  # [B, H, W, C]
-    one_hot = one_hot.permute(0, 3, 1, 2).float()  # [B, C, H, W]
+    # One-hot encoding: [B, H, W, C] -> [B, C, H, W]
+    one_hot = torch.nn.functional.one_hot(seg_clean, num_classes=num_classes).permute(0, 3, 1, 2).float()
 
-    # Filtro laplaciano
-    laplacian = torch.tensor([[0, 1, 0],
-                              [1, -4, 1],
-                              [0, 1, 0]], dtype=torch.float32, device=seg.device).view(1, 1, 3, 3)
+    # Filtro laplaciano replicato per ogni classe
+    base_kernel = torch.tensor([[0, 1, 0],
+                                [1, -4, 1],
+                                [0, 1, 0]], dtype=torch.float32, device=seg.device)
+    laplacian = base_kernel.view(1, 1, 3, 3).repeat(num_classes, 1, 1, 1)  # [C, 1, 3, 3]
 
-    # Convoluzione separata per ogni classe
+    # Convoluzione depthwise (gruppi = num_classes)
     edges = torch.nn.functional.conv2d(one_hot, laplacian, padding=1, groups=num_classes)
 
-    # Somma le risposte assolute e maschera i pixel ignorati
+    # Mappa binaria dei bordi, esclusi i pixel ignorati
     edge_map = (edges.abs().sum(dim=1, keepdim=True) > 0).float()  # [B,1,H,W]
-    edge_map *= valid_mask.unsqueeze(1).float()  # ignora i pixel 255
+    edge_map *= valid_mask.unsqueeze(1).float()  # ignora i 255
 
     return edge_map.squeeze(1)  # [B, H, W]
+
 
 
 
