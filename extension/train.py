@@ -146,7 +146,9 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr, λ=1.0):
             loss_seg = seg_loss_fn(seg_out, targets)
 
             detail_target = get_detail_target(targets)
+            detail_map = F.interpolate(detail_map, size=detail_target.shape[-2:], mode='bilinear', align_corners=False)
             loss_detail = detail_criterion(detail_map, detail_target)
+
 
             loss = loss_seg + λ * loss_detail
         else:
