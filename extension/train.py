@@ -305,6 +305,9 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
+    base_path = '/content/drive/MyDrive/Project_MLDL'
+    save_dir = os.path.join(base_path, 'checkpoints_est_prova9_06')
+    os.makedirs(save_dir, exist_ok=True)
     checkpoint_path = os.path.join(save_dir, 'checkpoint_extension_prova9_06.pth')
     var_model = "STDC1"
     best_miou = 0
