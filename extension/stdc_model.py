@@ -195,9 +195,14 @@ class STDC_Seg(nn.Module):
         if backbone == 'STDC1':
             self.backbone = STDCNet813()
             feat_channels = [32, 64, 256, 512, 1024]
+            # Per STDC1: feat2 ha 32 canali, fusion_input (prima di fusion) avrà 320
+            fusion_in_channels = 32 + 320  # = 352
+
         elif backbone == 'STDC2':
             self.backbone = STDCNet1446()
             feat_channels = [64, 512, 1024, 2048, 2048]
+            # Per STDC2: feat2 ha 64 canali, fusion_input (prima di fusion) avrà sempre 320
+            fusion_in_channels = 64 + 320  # = 384
         else:
             raise ValueError("Invalid backbone")
 
@@ -213,7 +218,11 @@ class STDC_Seg(nn.Module):
             nn.ReLU(inplace=True)
         )
 
-        self.fusion = None  # inizializzata dinamicamente nel primo forward() TATANDRE
+        # Istanzio qui il FeatureFusionModule con i canali già calcolati:
+        self.fusion = FeatureFusionModule(
+            num_classes=self.num_classes,
+            in_channels=fusion_in_channels
+        )
 
         self.seg_head = SegHead(in_channels=num_classes, mid_channels=64, num_classes=num_classes)
 
@@ -249,15 +258,6 @@ class STDC_Seg(nn.Module):
         global_context_up = F.interpolate(global_context, size=fusion_input.shape[2:], mode='bilinear', align_corners=True)
         global_context_up = self.global_context_conv(global_context_up)  # da 256 a 320 canali
         fusion_input = fusion_input + global_context_up
-
-        
-        # se la fusion module aspetta un numero specifico di canali, usa conv 1x1 per uniformare
-        if self.fusion is None:
-            in_channels = in_channels = feat2.size(1) + fusion_input.size(1)
-            self.fusion = FeatureFusionModule(
-                num_classes=self.num_classes,
-                in_channels=in_channels
-            ).to(x.device)
 
         fused = self.fusion(feat2, fusion_input)  # attenzione, qui puoi decidere cosa passare esattamente
         out = self.seg_head(fused)
