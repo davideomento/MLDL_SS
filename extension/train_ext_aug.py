@@ -69,7 +69,7 @@ img_transform = A.Compose([
     A.RandomScale(scale_limit=(0.125, 1.5)),      # Ridim casuale tra [0.125, 1.5]
     A.RandomCrop(height=512, width=1024),        # Crop finale
     A.HorizontalFlip(p=0.5),
-    A.Resize((512, 1024)),  # Resize fisso
+    A.Resize(height=512, width=1024),  # Resize fisso
     ToTensorV2(),
     A.Normalize(mean=(0.485, 0.456, 0.406),
                          std=(0.229, 0.224, 0.225)),
