@@ -7,6 +7,7 @@ from PIL import Image
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
+import torch.nn.functional as F  
 import wandb
 from torchvision.transforms import functional as TF
 from torchvision.transforms.functional import InterpolationMode
@@ -349,7 +350,7 @@ def main():
         print(f"💾 Checkpoint salvato a {checkpoint_path}")
     
     # Validazione finale
-    validate(model, val_dataloader, criterion)
+    validate(model, val_dataloader, criterion, epoch)
 
 
 if __name__ == "__main__":
