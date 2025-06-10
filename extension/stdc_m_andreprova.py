@@ -170,10 +170,21 @@ class STDC_Seg(nn.Module):
         super(STDC_Seg, self).__init__()
         self.use_detail = use_detail
         self.num_classes = num_classes
+        if backbone == 'STDC1':
+            self.backbone = STDCNet813()
+            feat_channels = [32, 64, 256, 512, 1024]
+            # Per STDC1: feat2 ha 32 canali, fusion_input (prima di fusion) avrà 320
+            fusion_in_channels = 32 + 320  # = 352
 
-        self.backbone = STDCNet813()
-        feat_channels = [32, 64, 256, 512, 1024]
-
+        elif backbone == 'STDC2':
+            self.backbone = STDCNet1446()
+            feat_channels = [64, 512, 1024, 2048, 2048]
+            # Per STDC2: feat2 ha 64 canali, fusion_input (prima di fusion) avrà sempre 320
+            fusion_in_channels = 64 + 320  # = 384
+        else:
+            raise ValueError("Invalid backbone")
+        
+        self.feat_channels = feat_channels
         self.arm8 = AttentionRefinementModule(feat_channels[2], feat_channels[2])
         self.arm4 = AttentionRefinementModule(feat_channels[1], feat_channels[1])
         self.arm16 = AttentionRefinementModule(feat_channels[3], feat_channels[3])
@@ -191,7 +202,12 @@ class STDC_Seg(nn.Module):
             nn.ReLU(inplace=True)
         )
 
-        self.fusion = None
+        # Istanzio qui il FeatureFusionModule con i canali già calcolati:
+        self.fusion = FeatureFusionModule(
+            num_classes=self.num_classes,
+            in_channels=fusion_in_channels
+        )
+
         self.decoder = nn.Sequential(
             nn.Conv2d(320, 128, 3, padding=1),
             nn.BatchNorm2d(128),
@@ -228,10 +244,6 @@ class STDC_Seg(nn.Module):
         global_context_up = self.global_context_conv(global_context_up)
 
         fusion_input = fusion_input + global_context_up
-
-        if self.fusion is None:
-            in_channels = feat2.size(1) + fusion_input.size(1)
-            self.fusion = FeatureFusionModule(num_classes=self.num_classes, in_channels=in_channels).to(x.device)
 
         fused = self.fusion(feat2, fusion_input)
 
