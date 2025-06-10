@@ -39,9 +39,14 @@ class CityScapes(Dataset):
     def __getitem__(self, idx):
         img = Image.open(self.image_paths[idx]).convert("RGB")
         mask = Image.open(self.label_paths[idx]).convert("L")
+        
+        # Convert PIL Images to numpy arrays
+        img_np = np.array(img)
+        mask_np = np.array(mask)
         # Expecting transforms that accept both image and mask
         img_transform, mask_transform = self.transform
 
+        # Apply image transformations (Albumentations expects numpy arrays)
         augmented = img_transform(image=img)
         img = augmented['image']
 
