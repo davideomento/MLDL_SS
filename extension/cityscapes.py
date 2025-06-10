@@ -51,7 +51,7 @@ class CityScapes(Dataset):
         img = augmented['image']
 
         
-        mask = mask_transform(mask)
+        mask = mask_transform(mask_np)
         mask = torch.as_tensor(np.array(mask), dtype=torch.long)
 
         # Apply label-only transforms
