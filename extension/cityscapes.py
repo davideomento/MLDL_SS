@@ -37,24 +37,33 @@ class CityScapes(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
+        # Load images
         img = Image.open(self.image_paths[idx]).convert("RGB")
         mask = Image.open(self.label_paths[idx]).convert("L")
         
-        # Convert PIL Images to numpy arrays
-        img_np = np.array(img) # Shape: (H, W, 3)
-        mask_np = np.array(mask)
-        # Expecting transforms that accept both image and mask
+        # Convert to numpy arrays
+        img_np = np.array(img)  # Shape: (H, W, 3), dtype: uint8
+        mask_np = np.array(mask)  # Shape: (H, W), dtype: uint8
+        
+        # Get transforms
         img_transform, mask_transform = self.transform
 
-        # Apply image transformations (Albumentations expects numpy arrays)
+        # Apply image transformations (Albumentations)
         augmented = img_transform(image=img_np)
-        img = augmented['image']
-
+        img = augmented['image']  # This should be numpy array after transforms
         
-        mask = mask_transform(mask_np)
-        mask = torch.as_tensor(np.array(mask), dtype=torch.long)
-
-        # Apply label-only transforms
+        # Apply mask transformations
+        if isinstance(mask_transform, albumentations.Compose):
+            augmented_mask = mask_transform(image=mask_np)
+            mask = augmented_mask['image']
+        else:
+            mask = mask_transform(mask_np)
+        
+        # Convert to tensors (AFTER all Albumentations transforms)
+        img = torch.from_numpy(img).permute(2, 0, 1).float()  # Convert to C,H,W
+        mask = torch.from_numpy(mask).long()
+        
+        # Apply any additional target transforms
         if self.target_transform:
             mask = self.target_transform(mask)
 
