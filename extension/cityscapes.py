@@ -42,7 +42,9 @@ class CityScapes(Dataset):
         # Expecting transforms that accept both image and mask
         img_transform, mask_transform = self.transform
 
-        img = img_transform(img)
+        augmented = img_transform(image=img)
+        img = augmented['image']
+
         
         mask = mask_transform(mask)
         mask = torch.as_tensor(np.array(mask), dtype=torch.long)
