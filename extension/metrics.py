@@ -141,3 +141,47 @@ def save_metrics_on_wandb(epoch, metrics_train, metrics_val):
             "val_flops": metrics_val['num_flops'],
             "val_params": metrics_val['trainable_params']
         })
+
+
+class ClassImportanceWeights:
+    """
+    Fornisce i pesi delle classi basati sulla pericolosità in caso di impatto veicolare.
+    """
+    def __init__(self):
+        # Mappatura Cityscapes: {class_id: peso}
+        self.weights = {
+            0: 0.3,   # road
+            1: 0.3,   # sidewalk
+            2: 0.1,   # building
+            3: 0.1,   # wall
+            4: 0.2,   # fence
+            5: 0.1,   # pole
+            6: 0.1,   # traffic light
+            7: 0.1,   # traffic sign
+            8: 0.1,   # vegetation
+            9: 0.2,   # terrain
+            10: 0.1,  # sky
+            11: 1.0,  # person
+            12: 0.9,  # rider
+            13: 0.7,  # car
+            14: 0.8,  # truck
+            15: 0.8,  # bus
+            16: 0.8,  # train
+            17: 0.8,  # motorcycle
+            18: 0.8   # bicycle
+        }
+
+    def get_weights(self):
+        return self.weights
+
+    def get_weight(self, class_id):
+        return self.weights.get(class_id, 0.0)  # 0.0 per classi sconosciute
+
+    def __getitem__(self, class_id):
+        return self.get_weight(class_id)
+
+    def keys(self):
+        return self.weights.keys()
+
+    def items(self):
+        return self.weights.items()
