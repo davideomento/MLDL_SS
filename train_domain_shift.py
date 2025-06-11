@@ -136,10 +136,10 @@ val_dataset = CityScapes(
 )
 
 # Dataloader per il dominio sorgente (GTA5)
-source_dataloader = DataLoader(train_source_dataset, batch_size=8, shuffle=True, num_workers=2)
+source_dataloader = DataLoader(train_source_dataset, batch_size=6, shuffle=True, num_workers=2)
 
 # Dataloader per il dominio target (Cityscapes, ma senza label supervisionate)
-target_dataloader = DataLoader(train_source_dataset, batch_size=8, shuffle=True, num_workers=2)
+target_dataloader = DataLoader(train_source_dataset, batch_size=6, shuffle=True, num_workers=2)
 
 val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)
 
