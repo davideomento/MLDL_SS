@@ -137,7 +137,7 @@ val_dataset = CityScapes_aug(
     target_transform=label_transform_val
 )
 
-subset_size = int(len(train_source_dataset) * 0.05)
+'''subset_size = int(len(train_source_dataset) * 0.05)
 subset_indices = list(range(subset_size))
 
 source_subset = Subset(train_source_dataset, subset_indices)
@@ -147,15 +147,16 @@ source_dataloader = DataLoader(source_subset, batch_size=6, shuffle=True, num_wo
 target_dataloader = DataLoader(target_subset, batch_size=6, shuffle=True, num_workers=2)
 
 val_subset = Subset(val_dataset, list(range(int(len(val_dataset) * 0.1))))
-val_dataloader = DataLoader(val_subset, batch_size=8, shuffle=False, num_workers=2)
+val_dataloader = DataLoader(val_subset, batch_size=8, shuffle=False, num_workers=2)'''
 
-'''# Dataloader per il dominio sorgente (GTA5)
+# Dataloader per il dominio sorgente (GTA5)
 source_dataloader = DataLoader(train_source_dataset, batch_size=6, shuffle=True, num_workers=2)
 
 # Dataloader per il dominio target (Cityscapes, ma senza label supervisionate)
 target_dataloader = DataLoader(train_source_dataset, batch_size=6, shuffle=True, num_workers=2)
 
-val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)'''
+val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)
+
 
 # output stride e numero classi corrispondono all'output di BiSeNet
 num_classes = 19
