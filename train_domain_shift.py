@@ -11,7 +11,7 @@ import wandb
 from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from datasets.gta5 import *
+from datasets.gta5_aug import *
 import torch.nn.functional as nnF
 from models.discriminator import FCDiscriminator
 import albumentations as A
