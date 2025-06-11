@@ -148,7 +148,7 @@ class ClassImportanceWeights:
     """
     Fornisce i pesi delle classi basati sulla pericolosità in caso di impatto veicolare.
     """
-    def _init_(self):
+    def __init__(self):
         # Mappatura Cityscapes: {class_id: peso}
         self.weights = {
             0: 0.3,   # road
@@ -178,7 +178,7 @@ class ClassImportanceWeights:
     def get_weight(self, class_id):
         return self.weights.get(class_id, 0.0)  # 0.0 per classi sconosciute
 
-    def _getitem_(self, class_id):
+    def __getitem__(self, class_id):
         return self.get_weight(class_id)
 
     def keys(self):
