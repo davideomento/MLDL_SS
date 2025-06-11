@@ -1,24 +1,25 @@
 import os
 import random
 import numpy as np
+
 import matplotlib.pyplot as plt
 from PIL import Image
-import pandas as pd
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
+import torch.nn.functional as F  
 import wandb
-from torchvision.transforms import functional as F
+from torchvision.transforms import functional as TF
+from torchvision.transforms.functional import InterpolationMode
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from datasets.gta5 import *
-import torch.nn.functional as nnF
+#from stdc_model import *
+from stdc_m_andreprova import *
 
 
 #from monai.losses import DiceLoss
-from datasets.cityscapes import CityScapes
-from models.bisenet.build_bisenet import BiSeNet
-from models.bisenet.build_contextpath import build_contextpath
+from cityscapes import CityScapes
+from stdc_model import STDC_Seg
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
 from utils import poly_lr_scheduler
 
@@ -41,94 +42,74 @@ set_seed(42)
 # =====================
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
-data_dir_train = '/content/MLDL_SS/GTA5'
-data_dir_val = '/content/MLDL_SS/Cityscapes/Cityspaces'    
-save_dir = os.path.join(base_path, 'checkpoints_3a_2605')
+data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
+save_dir = os.path.join(base_path, 'checkpoints_andre10_06')
 os.makedirs(save_dir, exist_ok=True)
 
 
 # =====================
 # Label Transform
 # =====================
-class LabelTransform:
-    def __init__(self, size, id_conversion=True):
+class LabelTransform():
+    def __init__(self, size=(512, 1024)):
         self.size = size
-        self.id_conversion = id_conversion
 
     def __call__(self, mask):
-        # mask: torch.Tensor (H, W) o PIL.Image se ancora non convertita
-        if not isinstance(mask, torch.Tensor):
-            mask = to_tensor_no_normalization(mask)
-
-        if self.id_conversion:
-            mask = transform_gta_to_cityscapes_label(mask)  # solo per GTA5
-
-        mask = mask.unsqueeze(0).unsqueeze(0).float()  # shape (1,1,H,W)
-        mask = nnF.interpolate(mask, size=self.size, mode='nearest')
-        mask = mask.squeeze().long()
-        return mask
-
+        mask = TF.resize(mask, self.size, interpolation=Image.NEAREST)
+        return torch.as_tensor(mask, dtype=torch.long)          
 
 ###############
 
 # Trasformazione per l'immagine
-img_transform_gta = transforms.Compose([
-            transforms.Resize((720, 1280)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
-
-img_transform_cs = transforms.Compose([
+img_transform = transforms.Compose([
     transforms.Resize((512, 1024)),  # Resize fisso
     transforms.ToTensor(),
     transforms.Normalize(mean=(0.485, 0.456, 0.406),
-                         std=(0.229, 0.224, 0.225))
+                         std=(0.229, 0.224, 0.225)),
 ])
+
+# Trasformazione per la mask (solo resize, no toTensor, no normalize)
+def mask_transform(mask):
+    return TF.resize(mask, (512, 1024), interpolation=InterpolationMode.NEAREST)
+
 
 def get_transforms():
     return {
-        'train': (img_transform_gta, lambda mask: mask),  # Dummy mask_transform, serve per compatibilità
-        'val': (img_transform_cs, lambda mask: mask)
+        'train': (img_transform, mask_transform),
+        'val': (img_transform, mask_transform)
     }
 
-    
 
 # =====================
 # Dataset & Dataloader
 # =====================
 transforms_dict = get_transforms()
-label_transform_train = LabelTransform(size=(720, 1280), id_conversion=True)  # GTA5
-label_transform_val   = LabelTransform(size=(512, 1024), id_conversion=False)  # Cityscapes
+label_transform = LabelTransform()
 
-train_dataset = GTA5(
-    root_dir=data_dir_train,
-    transform=transforms_dict['train'] ,
-    target_transform=label_transform_train
+train_dataset = CityScapes(
+    root_dir=data_dir,
+    split='train',
+    transform=transforms_dict['train'],
+    target_transform=label_transform
 )
-
 
 val_dataset = CityScapes(
-    root_dir=data_dir_val,
+    root_dir=data_dir,
     split='val',
     transform=transforms_dict['val'],
-    target_transform=label_transform_val
+    target_transform=label_transform
 )
 
-train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=2)
-val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)
+
+train_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=2)
 
 # =====================
 # Model Setup
 # =====================
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
-# Costruisci context path e BiSeNet in modo modulare
-context_path = build_contextpath(
-    name='resnet18',
-)
-
-model = BiSeNet(num_classes=19, context_path='resnet18').cuda()
+model = STDC_Seg(num_classes=19, backbone='STDC1', use_detail=True).to(device)
 
 class_weights = torch.tensor([
     2.6, 6.9, 3.5, 3.6, 3.6, 3.8, 3.4, 3.5, 5.1, 4.7,
@@ -136,36 +117,44 @@ class_weights = torch.tensor([
 ], dtype=torch.float).to(device)
 
 criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
-#dice_loss = DiceLoss(to_onehot_y=True, softmax=True)
-optimizer = torch.optim.SGD(model.parameters(), lr=2.5e-2, weight_decay=1e-4, momentum=0.9)
+optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
 
 num_epochs = 50
 max_iter = num_epochs
 
-# =====================
-# Training & Validation
-# =====================
-def train(epoch, model, train_loader, criterion, optimizer, init_lr):
+
+
+def train(epoch, model, train_loader, criterion, optimizer, init_lr, λ=1.0):
     model.train()
+
     running_loss = 0.0
+    batch_idx = 0
     loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}")
-    poly_lr_scheduler(optimizer, init_lr, epoch, max_iter)
+    current_iter = epoch
+    poly_lr_scheduler(optimizer, init_lr, current_iter, max_iter)
+    seg_loss_fn = criterion
+    detail_criterion = DetailLoss()
 
     for batch_idx, (inputs, targets) in loop:
-        inputs, targets = inputs.to(device), targets.to(device)
+        inputs, targets = inputs.to(device).float(), targets.to(device).long()
 
         optimizer.zero_grad()
-        outputs = model(inputs)
-        alpha = 1
-        if isinstance(outputs, (tuple, list)) and len(outputs) == 3:
-            main_out, aux1_out, aux2_out = outputs
-            loss = (
-                criterion(main_out, targets)
-                + alpha * criterion(aux1_out, targets)
-                + alpha * criterion(aux2_out, targets)
-            )
+        output = model(inputs)
+
+        if isinstance(output, tuple):  # con detail head
+            seg_out, detail_map = output
+            seg_out = torch.nn.functional.interpolate(seg_out, size=targets.shape[1:], mode='bilinear', align_corners=False)
+            loss_seg = seg_loss_fn(seg_out, targets)
+
+            detail_target = get_detail_target(targets)
+            detail_map = F.interpolate(detail_map, size=detail_target.shape[-2:], mode='bilinear', align_corners=False)
+            loss_detail = detail_criterion(detail_map, detail_target)
+
+
+            loss = loss_seg + λ * loss_detail
         else:
-            loss = criterion(outputs, targets)
+            output = torch.nn.functional.interpolate(output, size=targets.shape[1:], mode='bilinear', align_corners=False)
+            loss = seg_loss_fn(output, targets)
 
         loss.backward()
         optimizer.step()
@@ -182,7 +171,7 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
         "epoch": epoch,
         "loss": mean_loss,
         "lr": lr
-    })
+    }, step=epoch)
 
     model_save_path = f"model_epoch_{epoch}.pt"
     torch.save({
@@ -200,9 +189,6 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
 
     return mean_loss
 
-
-
- 
 CITYSCAPES_COLORS = [
     (128, 64,128), (244, 35,232), ( 70, 70, 70), (102,102,156),
     (190,153,153), (153,153,153), (250,170, 30), (220,220,  0),
@@ -237,6 +223,9 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
         for batch_idx, (inputs, targets) in loop:
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = model(inputs)
+            if isinstance(outputs, tuple):
+                outputs = outputs[0]  # usa solo l'output semantico
+            outputs = F.interpolate(outputs, size=targets.shape[-2:], mode='bilinear', align_corners=False)
             loss = criterion(outputs, targets)
 
             val_loss += loss.item()
@@ -284,9 +273,10 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
                 axes[2].axis('off')
 
                 plt.tight_layout()
-                fname = f"{save_dir}/img_gt_pred_gtcolor_epoch_{epoch}.png"
-                plt.savefig(fname)
+                plt.savefig(f"validation_epoch_{epoch}.png")
                 plt.close()
+                wandb.log({"validation_image": wandb.Image(fig)}, step=epoch)
+                tqdm.write(f"Validation image saved for epoch {epoch}")
 
 
     # Calcolo delle metriche per epoca
@@ -316,14 +306,14 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
-    best_model_path = os.path.join(save_dir, 'best_model_bisenet.pth')
-    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet.pth')
-    var_model = "bisenet" 
+    checkpoint_path = os.path.join(save_dir, 'checkpoints_andre10_06.pth')
+    var_model = "STDC1"
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}_3a_official"
+    project_name = f"{var_model}ext_andre10_06"
 
+    # 🔹 Ripristina da checkpoint locale se esiste
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['model_state'])
@@ -337,17 +327,14 @@ def main():
         project=project_name,
         entity="mldl-semseg-politecnico-di-torino",
         name=f"run_{var_model}",
-        id="lbe67c8v",                    # Questo è il punto chiave
+        id=f"{var_model}_run",
         resume="allow"
     )
     print("🛰️ Wandb inizializzato")
 
-    
     for epoch in range(start_epoch, num_epochs + 1):
-
         # Training
         train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
-        
         # Validation and Metrics
         val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
         save_metrics_on_wandb(epoch, train_loss, val_metrics)
@@ -363,11 +350,9 @@ def main():
         print(f"💾 Checkpoint salvato a {checkpoint_path}")
     
     # Validazione finale
-    validate(model, val_dataloader, criterion)
-
-
-
+    validate(model, val_dataloader, criterion, epoch)
 
 
 if __name__ == "__main__":
     main()
+

@@ -5,12 +5,10 @@ import numpy as np
 import time
 import pandas as pd
 import matplotlib.pyplot as plt
-from models.deeplabv2.deeplabv2 import get_deeplab_v2
 import os
-from models.bisenet.build_bisenet import BiSeNet
 import wandb
-from fvcore.nn import FlopCountAnalysis
-
+import fvcore.nn.flop_count as fc
+from fvcore.nn import FlopCountAnalysis 
 
 # ================================
 # Ambiente (Colab)
@@ -28,10 +26,6 @@ else:
     base_drive_path = './'
     working_dir = './'
 
-
-
-model_deeplab = get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path=pretrain_model_path)
-model_bisenet = BiSeNet(num_classes=19, context_path='resnet18')
 
 # =====================
 # Utils - mIoU
@@ -135,7 +129,8 @@ def save_metrics_on_wandb(epoch, metrics_train, metrics_val):
         to_serialize[f"class_{index}_val"] = iou
 
     # Log delle metriche di training e validazione su WandB
-    wandb.log(to_serialize)
+    if epoch != 50:
+        wandb.log(to_serialize)
 
     # Salvataggio delle metriche finali al 50esimo epoch
     if epoch == 50:

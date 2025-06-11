@@ -98,6 +98,7 @@ val_dataset = CityScapes(
 )
 
 
+<<<<<<< HEAD
 dataset_train_size = len(train_dataset)
 subset_train_size = int(0.01 * dataset_train_size)
 random_indices = np.random.permutation(dataset_train_size)[:subset_train_size]
@@ -110,6 +111,13 @@ val_subset = Subset(val_dataset, random_indices)
 
 train_dataloader = DataLoader(train_subset, batch_size=2, shuffle=True, num_workers=2)
 val_dataloader = DataLoader(val_subset, batch_size=2, shuffle=False, num_workers=2)
+=======
+print(f"Train dataset size: {len(train_dataset)}")
+print(f"Validation dataset size: {len(val_dataset)}")
+
+train_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=2)
+>>>>>>> 09d66f75d53b4a37c7b010892f3591af216f19ee
 
 # =====================
 # Model, Loss, Optimizer
@@ -309,6 +317,10 @@ def main():
         project=project_name,
         entity="mldl-semseg-politecnico-di-torino",
         name=f"run_{var_model}",
+<<<<<<< HEAD
+=======
+        id = 'we5mwjaw',
+>>>>>>> 09d66f75d53b4a37c7b010892f3591af216f19ee
         resume="allow"
     )
     print("🛰️ Wandb inizializzato")

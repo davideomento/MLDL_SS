@@ -14,6 +14,11 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torch.utils.data import Subset
 
+<<<<<<< HEAD
+=======
+
+#from monai.losses import DiceLoss
+>>>>>>> 09d66f75d53b4a37c7b010892f3591af216f19ee
 from datasets.cityscapes import CityScapes
 from utils import poly_lr_scheduler
 from models.deeplabv2.deeplabv2 import get_deeplab_v2
@@ -33,7 +38,11 @@ def set_seed(seed=42):
 set_seed(42)
 
 # ================================
+<<<<<<< HEAD
 # Ambiente: Kaggle
+=======
+# Ambiente: Colab o Locale
+>>>>>>> 09d66f75d53b4a37c7b010892f3591af216f19ee
 # ================================
 
 print("📍 Ambiente: Kaggle")
@@ -41,6 +50,7 @@ print("📍 Ambiente: Kaggle")
 # Percorso di lavoro per salvare output (modelli, metriche, immagini)
 base_path = '/kaggle/working'
 
+<<<<<<< HEAD
 # Dataset path
 data_dir = '/kaggle/input/cityscapes/Cityscapes/Cityspaces'
 
@@ -49,6 +59,15 @@ pretrain_model_path = "/kaggle/input/deeplab-resnet-pretrained-imagenet/deeplab_
 save_dir = os.path.join(base_path, 'checkpoints_deeplabv2')
 os.makedirs(save_dir, exist_ok=True)  # <-- CREA LA CARTELLA SE NON ESISTE
 checkpoint_path = os.path.join(save_dir, "checkpoint_latest.pt")
+=======
+# Dataset: assicurati di averlo caricato nella sezione "Add data" del notebook su Kaggle
+data_dir = '/kaggle/input/cityscapes/Cityscapes/Cityspaces'  # <-- sostituisci "cityscapes" se il tuo dataset ha un nome diverso
+
+# Pesi pre-addestrati del modello: caricali come dataset separato se non l'hai già fatto
+pretrain_model_path = '/kaggle/input/deeplab-resnet-pretrained-imagenet/deeplab_resnet_pretrained_imagenet (1).pth'  # <-- verifica che il file sia lì
+save_dir = os.path.join(base_path, 'checkpoints_deeplabv2')
+
+>>>>>>> 09d66f75d53b4a37c7b010892f3591af216f19ee
 
 # =====================
 # Label Transforms
@@ -61,28 +80,78 @@ class LabelTransform():
         mask = F.resize(mask, self.size, interpolation=Image.NEAREST)
         return torch.as_tensor(mask, dtype=torch.long)   
 
+<<<<<<< HEAD
 img_transform = transforms.Compose([
     transforms.Resize((512, 1024)),
     transforms.ToTensor(),
     transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
 ])
 
+=======
+
+
+###############
+
+# Trasformazione per l'immagine
+img_transform = transforms.Compose([
+    transforms.Resize((512, 1024)),  # Resize fisso
+    transforms.ToTensor(),
+    transforms.Normalize(mean=(0.485, 0.456, 0.406),
+                         std=(0.229, 0.224, 0.225)),
+])
+
+# Trasformazione per la mask (solo resize, no toTensor, no normalize)
+>>>>>>> 09d66f75d53b4a37c7b010892f3591af216f19ee
 def mask_transform(mask):
     return F.resize(mask, (512, 1024), interpolation=F.InterpolationMode.NEAREST)
 
 def get_transforms():
+<<<<<<< HEAD
     return {'train': (img_transform, mask_transform), 'val': (img_transform, mask_transform)}
+=======
+    return {
+        'train': (img_transform, mask_transform),
+        'val': (img_transform, mask_transform)
+    }
+>>>>>>> 09d66f75d53b4a37c7b010892f3591af216f19ee
 
 # =====================
 # Dataset & Dataloader
 # =====================
 transforms_dict = get_transforms()
 label_transform = LabelTransform()
+<<<<<<< HEAD
 train_dataset = CityScapes(data_dir, 'train', transforms_dict['train'], label_transform)
 val_dataset = CityScapes(data_dir, 'val', transforms_dict['val'], label_transform)
 
 train_subset = Subset(train_dataset, np.random.permutation(len(train_dataset))[:len(train_dataset)])
 val_subset = Subset(val_dataset, np.random.permutation(len(val_dataset))[:len(val_dataset)])
+=======
+train_dataset = CityScapes(
+    root_dir=data_dir,
+    split='train',
+    transform=transforms_dict['train'],
+    target_transform=label_transform
+)
+
+val_dataset = CityScapes(
+    root_dir=data_dir,
+    split='val',
+    transform=transforms_dict['val'],
+    target_transform=label_transform
+)
+
+
+dataset_train_size = len(train_dataset)
+subset_train_size = int(1 * dataset_train_size)
+random_indices = np.random.permutation(dataset_train_size)[:subset_train_size]
+train_subset = Subset(train_dataset, random_indices)
+
+dataset_val_size = len(val_dataset)
+subset_val_size = int(1 * dataset_val_size)
+random_indices = np.random.permutation(dataset_val_size)[:subset_val_size]
+val_subset = Subset(val_dataset, random_indices)
+>>>>>>> 09d66f75d53b4a37c7b010892f3591af216f19ee
 
 train_dataloader = DataLoader(train_subset, batch_size=2, shuffle=True, num_workers=2)
 val_dataloader = DataLoader(val_subset, batch_size=2, shuffle=False, num_workers=2)
@@ -92,17 +161,35 @@ val_dataloader = DataLoader(val_subset, batch_size=2, shuffle=False, num_workers
 # =====================
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+<<<<<<< HEAD
 model = get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path=pretrain_model_path).to(device)
 
+=======
+model = get_deeplab_v2(
+    num_classes=19,
+    pretrain=True,
+    pretrain_model_path=pretrain_model_path
+).to(device)
+
+#Provare a mettere i pesi dinamici
+>>>>>>> 09d66f75d53b4a37c7b010892f3591af216f19ee
 class_weights = torch.tensor([
     2.6, 6.9, 3.5, 3.6, 3.6, 3.8, 3.4, 3.5, 5.1, 4.7,
     6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
 ], dtype=torch.float).to(device)
 
+<<<<<<< HEAD
 criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
 optimizer = optim.SGD(model.optim_parameters(lr=1e-3), momentum=0.9, weight_decay=0.0005)
 num_epochs = 50
 max_iter = num_epochs * len(train_dataloader)
+=======
+criterion = nn.CrossEntropyLoss(weight = class_weights, ignore_index=255)
+optimizer = optim.SGD(model.optim_parameters(lr=1e-3), momentum=0.9, weight_decay=0.0005)
+num_epochs = 50
+#mettere sia che cambia ogni iter che ogni epoca
+max_iter = num_epochs* len(train_dataloader)
+>>>>>>> 09d66f75d53b4a37c7b010892f3591af216f19ee
 
 # =====================
 # Train / Validate
@@ -256,16 +343,27 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
     }
 
 
+<<<<<<< HEAD
 # =====================
 # Main Function
 # =====================
 def main():
     var_model = "Deeplabv2"
+=======
+
+def main():
+    checkpoint_path = os.path.join(save_dir, 'checkpoint_deeplabv2.pth')
+    var_model = "Deeplabv2" 
+>>>>>>> 09d66f75d53b4a37c7b010892f3591af216f19ee
     init_lr = 1e-3
     best_miou = 0
     start_epoch = 1
     project_name = f"{var_model}_official"
 
+<<<<<<< HEAD
+=======
+    # 🔹 Ripristina da checkpoint locale se esiste
+>>>>>>> 09d66f75d53b4a37c7b010892f3591af216f19ee
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['model_state'])
@@ -273,7 +371,12 @@ def main():
         best_miou = checkpoint['best_miou']
         start_epoch = checkpoint['epoch'] + 1
         print(f"✔ Ripreso da epoca {checkpoint['epoch']} con mIoU: {best_miou:.4f}")
+<<<<<<< HEAD
 
+=======
+    
+    # 🔹 Inizializza wandb una sola volta
+>>>>>>> 09d66f75d53b4a37c7b010892f3591af216f19ee
     wandb.init(
         project=project_name,
         entity="mldl-semseg-politecnico-di-torino",
@@ -283,10 +386,22 @@ def main():
     print("🛰️ Wandb inizializzato")
 
     for epoch in range(start_epoch, num_epochs + 1):
+<<<<<<< HEAD
         train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
         val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
         save_metrics_on_wandb(epoch, train_loss, val_metrics)
 
+=======
+
+        # Training
+        train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
+        
+        # Validation and Metrics
+        val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
+        save_metrics_on_wandb(epoch, train_loss, val_metrics)
+
+        # 🔹 Salva il checkpoint localmente
+>>>>>>> 09d66f75d53b4a37c7b010892f3591af216f19ee
         checkpoint_data = {
             'model_state': model.state_dict(),
             'optimizer_state': optimizer.state_dict(),
@@ -295,8 +410,65 @@ def main():
         }
         torch.save(checkpoint_data, checkpoint_path)
         print(f"💾 Checkpoint salvato a {checkpoint_path}")
+<<<<<<< HEAD
 
     validate(model, val_dataloader, criterion)
 
 if __name__ == "__main__":
     main()
+=======
+    
+    # Validazione finale
+    validate(model, val_dataloader, criterion)
+
+
+
+
+'''def plot_metrics(metrics_data):
+    # Funzione per plottare le metriche nel tempo
+    df = pd.DataFrame(metrics_data)
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(df['epoch'], df['val_loss'], label='Validation Loss')
+    plt.plot(df['epoch'], df['train_loss'], label='Train Loss', linestyle='--')
+    plt.title('Loss over Epochs')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(df['epoch'], df['val_accuracy'], label='Validation Accuracy')
+    plt.title('Accuracy over Epochs')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy (%)')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(df['epoch'], df['miou'], label='mIoU')
+    plt.title('Mean IoU over Epochs')
+    plt.xlabel('Epoch')
+    plt.ylabel('mIoU')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    # Plot della IoU per classe (opzionale)
+    iou_per_class = np.array(df['iou_per_class'].tolist())
+    for i in range(iou_per_class.shape[1]):
+        plt.plot(df['epoch'], iou_per_class[:, i], label=f'Class {i}')
+    plt.title('IoU per Class over Epochs')
+    plt.xlabel('Epoch')
+    plt.ylabel('IoU')
+    plt.legend(loc='upper left')
+    plt.grid(True)
+    plt.show()'''
+
+
+
+if __name__ == "__main__":
+    main()
+>>>>>>> 09d66f75d53b4a37c7b010892f3591af216f19ee
