@@ -20,7 +20,7 @@ from albumentations.pytorch import ToTensorV2
 
 
 #from monai.losses import DiceLoss
-from datasets.cityscapes import CityScapes
+from datasets.cityscapes_aug import CityScapes_aug
 from models.bisenet.build_bisenet import BiSeNet
 from models.bisenet.build_contextpath import build_contextpath
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
@@ -121,14 +121,14 @@ train_source_dataset = GTA5_aug(
     target_transform=label_transform_train
 )
 
-train_target_dataset = CityScapes(
+train_target_dataset = CityScapes_aug(
     root_dir=data_dir_val,
     split='train',
     transform=transforms_dict['train'],
     target_transform=label_transform_val
 )
 
-val_dataset = CityScapes(
+val_dataset = CityScapes_aug(
     root_dir=data_dir_val,
     split='val',
     transform=transforms_dict['val'],

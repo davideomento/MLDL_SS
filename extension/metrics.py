@@ -168,7 +168,7 @@ class ClassImportanceWeights:
             15: 0.8,  # bus
             16: 0.8,  # train
             17: 0.8,  # motorcycle
-            18: 0.8   # bicycle
+            18: 1.0   # bicycle
         }
 
     def get_weights(self):
