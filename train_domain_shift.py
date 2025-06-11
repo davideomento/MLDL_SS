@@ -12,6 +12,7 @@ from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from datasets.gta5_aug import *
+from datasets.gta5 import transform_gta_to_cityscapes_label, to_tensor_no_normalization
 import torch.nn.functional as nnF
 from models.discriminator import FCDiscriminator
 import albumentations as A
@@ -114,7 +115,7 @@ transforms_dict = get_transforms()
 label_transform_train = LabelTransform(size=(720, 1280), id_conversion=True)  # GTA5
 label_transform_val   = LabelTransform(size=(512, 1024), id_conversion=False)  # Cityscapes
 
-train_source_dataset = GTA5(
+train_source_dataset = GTA5_aug(
     root_dir=data_dir_train,
     transform=transforms_dict['train'] ,
     target_transform=label_transform_train
