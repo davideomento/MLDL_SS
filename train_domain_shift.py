@@ -102,8 +102,8 @@ img_transform_cs = A.Compose([
 
 def get_transforms():
     return {
-        'train': (img_transform_gta, lambda mask: mask),  # Dummy mask_transform, serve per compatibilità
-        'val': (img_transform_cs, lambda mask: mask)
+        'train': (img_transform_gta),  # Dummy mask_transform, serve per compatibilità
+        'val': (img_transform_cs)
     }
 
     
