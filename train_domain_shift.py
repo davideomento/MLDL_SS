@@ -46,7 +46,7 @@ print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir_train = '/content/MLDL_SS/GTA5'
 data_dir_val = '/content/MLDL_SS/Cityscapes/Cityspaces'    
-save_dir = os.path.join(base_path, 'checkpoints_adversarial')
+save_dir = os.path.join(base_path, 'checkpoints_adversarial_official')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -381,7 +381,7 @@ def main():
     start_epoch = 1
     lr_seg = 2.5e-2
     lr_disc = 1e-4
-    project_name = f"{var_model}_prova"
+    project_name = f"{var_model}_official"
 
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
