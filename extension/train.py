@@ -50,7 +50,7 @@ set_seed(42)
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-save_dir = os.path.join(base_path, 'checkpoints_andre10_06')
+save_dir = os.path.join(base_path, 'provametrica')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -325,12 +325,12 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
-    checkpoint_path = os.path.join(save_dir, 'checkpoints_andre10_06.pth')
+    checkpoint_path = os.path.join(save_dir, 'checkpoints_newmteric.pth')
     var_model = "STDC1"
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}ext_andre10_06"
+    project_name = f"{var_model}ext_newmetric"
 
     # 🔹 Ripristina da checkpoint locale se esiste
     if os.path.exists(checkpoint_path):

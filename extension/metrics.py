@@ -163,13 +163,13 @@ class ClassImportanceWeights:
             9: 0.2,   # terrain
             10: 0.1,  # sky
             11: 1.0,  # person
-            12: 0.9,  # rider
+            12: 1.0,  # rider
             13: 0.7,  # car
             14: 0.8,  # truck
             15: 0.8,  # bus
             16: 0.8,  # train
             17: 0.8,  # motorcycle
-            18: 0.8   # bicycle
+            18: 1.0   # bicycle
         }
 
     def get_weights(self):
