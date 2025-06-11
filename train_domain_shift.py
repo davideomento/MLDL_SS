@@ -137,7 +137,7 @@ val_dataset = CityScapes_aug(
     target_transform=label_transform_val
 )
 
-subset_size = int(len(train_source_dataset) * 0.01)
+subset_size = int(len(train_source_dataset) * 0.05)
 subset_indices = list(range(subset_size))
 
 source_subset = Subset(train_source_dataset, subset_indices)
