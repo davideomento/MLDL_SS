@@ -93,11 +93,11 @@ img_transform_gta = A.Compose([
     ])
 
 
-img_transform_cs = transforms.Compose([
-    transforms.Resize((512, 1024)),  # Resize fisso
-    transforms.ToTensor(),
-    transforms.Normalize(mean=(0.485, 0.456, 0.406),
-                         std=(0.229, 0.224, 0.225))
+img_transform_cs = A.Compose([
+    A.Resize(512, 1024),
+    A.Normalize(mean=[0.485, 0.456, 0.406], 
+                std=[0.229, 0.224, 0.225]),
+    ToTensorV2()
 ])
 
 def get_transforms():
