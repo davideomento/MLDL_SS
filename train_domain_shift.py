@@ -17,6 +17,8 @@ import torch.nn.functional as nnF
 from models.discriminator import FCDiscriminator
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+from torch.utils.data import Subset
+
 
 
 #from monai.losses import DiceLoss
@@ -135,13 +137,25 @@ val_dataset = CityScapes_aug(
     target_transform=label_transform_val
 )
 
-# Dataloader per il dominio sorgente (GTA5)
+subset_size = int(len(train_source_dataset) * 0.1)
+subset_indices = list(range(subset_size))
+
+source_subset = Subset(train_source_dataset, subset_indices)
+target_subset = Subset(train_target_dataset, subset_indices)  # o train_source_dataset se vuoi
+
+source_dataloader = DataLoader(source_subset, batch_size=6, shuffle=True, num_workers=2)
+target_dataloader = DataLoader(target_subset, batch_size=6, shuffle=True, num_workers=2)
+
+val_subset = Subset(val_dataset, list(range(int(len(val_dataset) * 0.1))))
+val_dataloader = DataLoader(val_subset, batch_size=8, shuffle=False, num_workers=2)
+
+'''# Dataloader per il dominio sorgente (GTA5)
 source_dataloader = DataLoader(train_source_dataset, batch_size=6, shuffle=True, num_workers=2)
 
 # Dataloader per il dominio target (Cityscapes, ma senza label supervisionate)
 target_dataloader = DataLoader(train_source_dataset, batch_size=6, shuffle=True, num_workers=2)
 
-val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)
+val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)'''
 
 # output stride e numero classi corrispondono all'output di BiSeNet
 num_classes = 19
