@@ -12,15 +12,22 @@ from torchvision.transforms import functional as TF
 from torchvision.transforms.functional import InterpolationMode
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-#from stdc_model import *
-from stdc_m_andreprova import *
+from stdc_model import *
+#from stdc_m_andreprova import *
 
 
 #from monai.losses import DiceLoss
 from cityscapes import CityScapes
 from stdc_model import STDC_Seg
-from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
+from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb, ClassImportanceWeights
 from utils import poly_lr_scheduler
+
+
+
+
+weights_obj = ClassImportanceWeights()
+weights = weights_obj.get_weights()
+
 
 
 # =====================
@@ -283,9 +290,20 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
     val_accuracy = 100. * correct / total
     iou_per_class = total_intersection / total_union
     miou = torch.nanmean(iou_per_class).item()
+    # Converti dizionario in lista allineata con iou_per_class
+    weight_tensor = torch.tensor([weights.get(i, 0.0) for i in range(len(iou_per_class))], device=iou_per_class.device)
+
+    # Ignora la classe 0 (sfondo)
+    iou = iou_per_class.clone()
+    iou[255] = torch.nan  # oppure 0, se preferisci
+
+    # Calcolo weighted mIoU
+    valid_mask = ~torch.isnan(iou)
+    weighted_iou = torch.nansum(iou * weight_tensor) / torch.sum(weight_tensor[valid_mask])
+    wmiou = weighted_iou.item()
 
     print(f'Validation Loss: {val_loss:.6f} | Acc: {val_accuracy:.2f}% | mIoU: {miou:.4f}')
-
+    
     if epoch == 50:
         bench_results = benchmark_model(model)
     else:
@@ -295,6 +313,7 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
         'loss': val_loss,
         'accuracy': val_accuracy,
         'miou': miou,
+        'wmiou': wmiou,
         'iou_per_class': iou_per_class,
         'loss_values': loss_values,
         'accuracy_values': accuracy_values,
