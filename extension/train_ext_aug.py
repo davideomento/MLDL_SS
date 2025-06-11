@@ -1,5 +1,6 @@
 import os
 import random
+from re import A
 import numpy as np
 
 import matplotlib.pyplot as plt
@@ -9,26 +10,21 @@ import torch.nn as nn
 import torchvision.transforms as transforms
 import torch.nn.functional as F  
 import wandb
+import albumentations as A
 from torchvision.transforms import functional as TF
 from torchvision.transforms.functional import InterpolationMode
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from stdc_model import *
-#from stdc_m_andreprova import *
+#from stdc_model import *
+from stdc_m_andreprova import *
+from albumentations.pytorch import ToTensorV2
 
 
 #from monai.losses import DiceLoss
 from cityscapes import CityScapes
 from stdc_model import STDC_Seg
-from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb, ClassImportanceWeights
+from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
 from utils import poly_lr_scheduler
-
-
-
-
-weights_obj = ClassImportanceWeights()
-weights = weights_obj.get_weights()
-
 
 
 # =====================
@@ -50,7 +46,7 @@ set_seed(42)
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-save_dir = os.path.join(base_path, 'checkpoints_andre10_06')
+save_dir = os.path.join(base_path, 'checkpoints_ema10_06')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -68,10 +64,14 @@ class LabelTransform():
 ###############
 
 # Trasformazione per l'immagine
-img_transform = transforms.Compose([
-    transforms.Resize((512, 1024)),  # Resize fisso
-    transforms.ToTensor(),
-    transforms.Normalize(mean=(0.485, 0.456, 0.406),
+img_transform = A.Compose([
+    A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5), # modifica casuale di luminosità, contrasto, saturazione e tonalità
+    A.RandomScale(scale_limit=(0.125, 1.5)),      # Ridim casuale tra [0.125, 1.5]
+    A.RandomCrop(height=512, width=1024),        # Crop finale
+    A.HorizontalFlip(p=0.5),
+    A.Resize(height=512, width=1024),  # Resize fisso
+    ToTensorV2(),
+    A.Normalize(mean=(0.485, 0.456, 0.406),
                          std=(0.229, 0.224, 0.225)),
 ])
 
@@ -291,20 +291,9 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
     val_accuracy = 100. * correct / total
     iou_per_class = total_intersection / total_union
     miou = torch.nanmean(iou_per_class).item()
-    # Converti dizionario in lista allineata con iou_per_class
-    weight_tensor = torch.tensor([weights.get(i, 0.0) for i in range(len(iou_per_class))], device=iou_per_class.device)
-
-    # Ignora la classe 0 (sfondo)
-    iou = iou_per_class.clone()
-    iou[255] = torch.nan  # oppure 0, se preferisci
-
-    # Calcolo weighted mIoU
-    valid_mask = ~torch.isnan(iou)
-    weighted_iou = torch.nansum(iou * weight_tensor) / torch.sum(weight_tensor[valid_mask])
-    wmiou = weighted_iou.item()
 
     print(f'Validation Loss: {val_loss:.6f} | Acc: {val_accuracy:.2f}% | mIoU: {miou:.4f}')
-    
+
     if epoch == 50:
         bench_results = benchmark_model(model)
     else:
@@ -314,7 +303,6 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
         'loss': val_loss,
         'accuracy': val_accuracy,
         'miou': miou,
-        'wmiou': wmiou,
         'iou_per_class': iou_per_class,
         'loss_values': loss_values,
         'accuracy_values': accuracy_values,
@@ -325,12 +313,12 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
-    checkpoint_path = os.path.join(save_dir, 'checkpoints_andre10_06.pth')
+    checkpoint_path = os.path.join(save_dir, 'checkpoints_ema10_06.pth')
     var_model = "STDC1"
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}ext_andre10_06"
+    project_name = f"{var_model}ext_ema10_06"
 
     # 🔹 Ripristina da checkpoint locale se esiste
     if os.path.exists(checkpoint_path):

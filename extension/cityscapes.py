@@ -39,12 +39,19 @@ class CityScapes(Dataset):
     def __getitem__(self, idx):
         img = Image.open(self.image_paths[idx]).convert("RGB")
         mask = Image.open(self.label_paths[idx]).convert("L")
+        
+        # Convert PIL Images to numpy arrays
+        img_np = np.array(img) # Shape: (H, W, 3)
+        mask_np = np.array(mask)
         # Expecting transforms that accept both image and mask
         img_transform, mask_transform = self.transform
 
-        img = img_transform(img)
+        # Apply image transformations (Albumentations expects numpy arrays)
+        augmented = img_transform(image=img_np)
+        img = augmented['image']
+
         
-        mask = mask_transform(mask)
+        mask = mask_transform(mask_np)
         mask = torch.as_tensor(np.array(mask), dtype=torch.long)
 
         # Apply label-only transforms
