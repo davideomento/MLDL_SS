@@ -126,8 +126,10 @@ train_source_dataset = GTA5_aug(
 train_target_dataset = CityScapes_aug(
     root_dir=data_dir_val,
     split='train',
-    transform=transforms_dict['train'],
-    target_transform=label_transform_val
+    transform=transforms_dict['val'],
+    #target_transform=label_transform_val
+    target_transform=None  # Nessuna supervisione nel target
+
 )
 
 val_dataset = CityScapes_aug(
@@ -227,12 +229,22 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
 
         # Adversarial loss
         optimizer_disc.zero_grad()
-        outputs_s_detached = outputs_s[0].detach()  # Disattiva il gradiente per l'output della rete principale
+        if isinstance(outputs_s, (tuple, list)):
+            outputs_s_detached = outputs_s[0].detach()
+            outputs_t_detached = outputs_t[0].detach()
+        else:
+            outputs_s_detached = outputs_s.detach()
+            outputs_t_detached = outputs_t.detach()
+        
         outputs_t = model(inputs_t)
-        outputs_t_detached = outputs_t[0].detach()  # Disattiva il gradiente per l'output della rete principale
 
-        pred_s = discriminator(outputs_s_detached)
-        pred_t = discriminator(outputs_t_detached)
+        '''pred_s = discriminator(outputs_s_detached)
+        pred_t = discriminator(outputs_t_detached)'''
+
+        pred_s = discriminator(torch.softmax(outputs_s_detached, dim=1))
+        pred_t = discriminator(torch.softmax(outputs_t_detached, dim=1))
+
+
         loss_disc = criterion_adv(pred_s, torch.ones_like(pred_s)) + criterion_adv(pred_t, torch.zeros_like(pred_t))
         loss_disc.backward()
         optimizer_disc.step()
