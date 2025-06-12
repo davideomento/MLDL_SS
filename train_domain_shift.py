@@ -397,7 +397,7 @@ def main():
     start_epoch = 1
     lr_seg = 2.5e-2
     lr_disc = 1e-4
-    project_name = f"{var_model}_official"
+    project_name = f"{var_model}_official_official"
 
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
