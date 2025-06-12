@@ -49,7 +49,7 @@ print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir_train = '/content/MLDL_SS/GTA5'
 data_dir_val = '/content/MLDL_SS/Cityscapes/Cityspaces'    
-save_dir = os.path.join(base_path, 'checkpoints_adversarial_official')
+save_dir = os.path.join(base_path, 'checkpoints_adversarial_official_official')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -257,7 +257,7 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
         "loss": mean_loss,
         "lr_seg": lr_seg,
         "lr_disc": lr_disc
-    })
+    }, step=epoch)
 
     model_save_path = f"model_epoch_{epoch}.pt"
     torch.save({
