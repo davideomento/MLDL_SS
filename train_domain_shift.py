@@ -229,12 +229,11 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
 
         # Adversarial loss
         optimizer_disc.zero_grad()
-        '''if isinstance(outputs_s, (tuple, list)):
-            outputs_s_detached = outputs_s[0].detach()
-            outputs_t_detached = outputs_t[0].detach()
-        else:
-            outputs_s_detached = outputs_s.detach()
-            outputs_t_detached = outputs_t.detach()'''
+        # Adversarial loss
+
+        outputs_s_detached = outputs_s[0].detach()  # Disattiva il gradiente per l'output della rete principale
+        outputs_t = model(inputs_t)
+        outputs_t_detached = outputs_t[0].detach()  # Disattiva il gradiente per l'output della rete principale
         
         outputs_t = model(inputs_t)
 
