@@ -229,17 +229,17 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
 
         # Adversarial loss
         optimizer_disc.zero_grad()
-        if isinstance(outputs_s, (tuple, list)):
+        '''if isinstance(outputs_s, (tuple, list)):
             outputs_s_detached = outputs_s[0].detach()
             outputs_t_detached = outputs_t[0].detach()
         else:
             outputs_s_detached = outputs_s.detach()
-            outputs_t_detached = outputs_t.detach()
+            outputs_t_detached = outputs_t.detach()'''
         
         outputs_t = model(inputs_t)
 
-        '''pred_s = discriminator(outputs_s_detached)
-        pred_t = discriminator(outputs_t_detached)'''
+        pred_s = discriminator(outputs_s_detached)
+        pred_t = discriminator(outputs_t_detached)
 
         pred_s = discriminator(torch.softmax(outputs_s_detached, dim=1))
         pred_t = discriminator(torch.softmax(outputs_t_detached, dim=1))
