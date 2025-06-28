@@ -21,7 +21,7 @@ from albumentations.pytorch import ToTensorV2
 
 
 #from monai.losses import DiceLoss
-from cityscapes import CityScapes
+from cityscapes_aug import CityScapes_aug
 from stdc_model import STDC_Seg
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb, ClassImportanceWeights
 from utils import poly_lr_scheduler
@@ -97,14 +97,14 @@ def get_transforms():
 transforms_dict = get_transforms()
 label_transform = LabelTransform()
 
-train_dataset = CityScapes(
+train_dataset = CityScapes_aug(
     root_dir=data_dir,
     split='train',
     transform=transforms_dict['train'],
     target_transform=label_transform
 )
 
-val_dataset = CityScapes(
+val_dataset = CityScapes_aug(
     root_dir=data_dir,
     split='val',
     transform=transforms_dict['val'],
