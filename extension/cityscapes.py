@@ -46,10 +46,7 @@ class CityScapes(Dataset):
         # Expecting transforms that accept both image and mask
         img_transform, mask_transform = self.transform
 
-        # Apply image transformations (Albumentations expects numpy arrays)
-        augmented = img_transform(img_np)
-        img = augmented['image']
-
+        img = img_transform(img)
         
         mask = mask_transform(mask_np)
         mask = torch.as_tensor(np.array(mask), dtype=torch.long)
