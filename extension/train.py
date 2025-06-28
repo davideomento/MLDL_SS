@@ -294,13 +294,9 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
     # Converti dizionario in lista allineata con iou_per_class
     weight_tensor = torch.tensor([weights.get(i, 0.0) for i in range(len(iou_per_class))], device=iou_per_class.device)
 
-    # Ignora la classe 0 (sfondo)
-    iou = iou_per_class.clone()
-    iou[255] = torch.nan  # oppure 0, se preferisci
-
     # Calcolo weighted mIoU
-    valid_mask = ~torch.isnan(iou)
-    weighted_iou = torch.nansum(iou * weight_tensor) / torch.sum(weight_tensor[valid_mask])
+    valid_mask = ~torch.isnan(iou_per_class)
+    weighted_iou = torch.nansum(iou_per_class * weight_tensor) / torch.sum(weight_tensor[valid_mask])
     wmiou = weighted_iou.item()
 
     print(f'Validation Loss: {val_loss:.6f} | Acc: {val_accuracy:.2f}% | mIoU: {miou:.4f}')
