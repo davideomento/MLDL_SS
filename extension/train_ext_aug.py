@@ -67,28 +67,28 @@ class LabelTransform():
 
 ###############
 
-# Trasformazione per l'immagine
-img_transform = A.Compose([
-    A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5), # modifica casuale di luminosità, contrasto, saturazione e tonalità
-    A.RandomScale(scale_limit=(0.125, 1.5)),      # Ridim casuale tra [0.125, 1.5]
-    A.RandomCrop(height=512, width=1024),        # Crop finale
-    A.HorizontalFlip(p=0.5),
-    A.Resize(height=512, width=1024),  # Resize fisso
-    ToTensorV2(),
-    A.Normalize(mean=(0.485, 0.456, 0.406),
-                         std=(0.229, 0.224, 0.225)),
-])
-
-# Trasformazione per la mask (solo resize, no toTensor, no normalize)
-def mask_transform(mask):
-    return TF.resize(mask, (512, 1024), interpolation=InterpolationMode.NEAREST)
-
-
 def get_transforms():
+    train_transform = A.Compose([
+        A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5),
+        A.RandomScale(scale_limit=(0.125, 1.5)),
+        A.RandomCrop(height=512, width=1024),
+        A.HorizontalFlip(p=0.5),
+        A.Resize(height=512, width=1024),
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ToTensorV2(),
+    ])
+
+    val_transform = A.Compose([
+        A.Resize(height=512, width=1024),
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ToTensorV2(),
+    ])
+
     return {
-        'train': (img_transform, mask_transform),
-        'val': (img_transform, mask_transform)
+        'train': train_transform,
+        'val': val_transform
     }
+
 
 
 # =====================
@@ -110,6 +110,7 @@ val_dataset = CityScapes_aug(
     transform=transforms_dict['val'],
     target_transform=label_transform
 )
+
 
 
 train_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=2)
