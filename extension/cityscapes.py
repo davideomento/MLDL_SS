@@ -47,7 +47,7 @@ class CityScapes(Dataset):
         img_transform, mask_transform = self.transform
 
         # Apply image transformations (Albumentations expects numpy arrays)
-        augmented = img_transform(image=img_np)
+        augmented = img_transform(img_np)
         img = augmented['image']
 
         
