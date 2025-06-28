@@ -15,8 +15,8 @@ from torchvision.transforms import functional as TF
 from torchvision.transforms.functional import InterpolationMode
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-#from stdc_model import *
-from stdc_m_andreprova import *
+from stdc_model import *
+#from stdc_m_andreprova import *
 from albumentations.pytorch import ToTensorV2
 
 
