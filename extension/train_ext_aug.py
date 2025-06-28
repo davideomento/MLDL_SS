@@ -69,10 +69,10 @@ class LabelTransform():
 
 def get_transforms():
     train_transform = A.Compose([
-        A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5),
-        A.RandomScale(scale_limit=(0.125, 1.5)),
+        A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05, p=0.3),
+        A.RandomScale(scale_limit=(0.8, 1.2), p=0.7),
         A.RandomCrop(height=512, width=1024),
-        A.HorizontalFlip(p=0.5),
+        A.HorizontalFlip(p=0.3),
         A.Resize(height=512, width=1024),
         A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2(),
