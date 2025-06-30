@@ -15,25 +15,13 @@ from torchvision.transforms import functional as TF
 from torchvision.transforms.functional import InterpolationMode
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-<<<<<<< HEAD
-#from stdc_model import *
-from stdc_m_andreprova import *
-=======
+
 from stdc_model import *
 #from stdc_m_andreprova import *
->>>>>>> 0144a2a421f9190a15140ae15274235a332c45ce
 from albumentations.pytorch import ToTensorV2
 
 
 #from monai.losses import DiceLoss
-<<<<<<< HEAD
-from cityscapes import CityScapes
-from stdc_model import STDC_Seg
-from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
-from utils import poly_lr_scheduler
-
-
-=======
 from cityscapes_aug import CityScapes_aug
 from stdc_model import STDC_Seg
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb, ClassImportanceWeights
@@ -44,7 +32,6 @@ from utils import poly_lr_scheduler
 weights_obj = ClassImportanceWeights()
 weights = weights_obj.get_weights()
 
->>>>>>> 0144a2a421f9190a15140ae15274235a332c45ce
 # =====================
 # Set Seed
 # =====================
@@ -64,7 +51,7 @@ set_seed(42)
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-save_dir = os.path.join(base_path, 'checkpoints_ema10_06')
+save_dir = os.path.join(base_path, 'checkpoints_30_06_jitter_saturation_blur_bright_noflip')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -81,14 +68,15 @@ class LabelTransform():
 
 ###############
 
-<<<<<<< HEAD
 # Trasformazione per l'immagine
 img_transform = A.Compose([
-    A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5), # modifica casuale di luminosità, contrasto, saturazione e tonalità
-    A.RandomScale(scale_limit=(0.125, 1.5)),      # Ridim casuale tra [0.125, 1.5]
-    A.RandomCrop(height=512, width=1024),        # Crop finale
-    A.HorizontalFlip(p=0.5),
     A.Resize(height=512, width=1024),  # Resize fisso
+    A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5),
+    A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0), p=0.5),
+    #A.GaussNoise(var_limit=(10.0, 50.0), p=0.5),
+    #A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, p=0.5),
+    A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),  # Low intensity
+    A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=10, val_shift_limit=10, p=0.5),  # Subtle color variation
     ToTensorV2(),
     A.Normalize(mean=(0.485, 0.456, 0.406),
                          std=(0.229, 0.224, 0.225)),
@@ -106,54 +94,22 @@ def get_transforms():
     }
 
 
-=======
-def get_transforms():
-    train_transform = A.Compose([
-        A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05, p=0.3),
-        A.RandomScale(scale_limit=(0.8, 1.2), p=0.7),
-        A.RandomCrop(height=512, width=1024),
-        A.HorizontalFlip(p=0.3),
-        A.Resize(height=512, width=1024),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ToTensorV2(),
-    ])
-
-    val_transform = A.Compose([
-        A.Resize(height=512, width=1024),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ToTensorV2(),
-    ])
-
-    return {
-        'train': train_transform,
-        'val': val_transform
-    }
-
-
-
->>>>>>> 0144a2a421f9190a15140ae15274235a332c45ce
 # =====================
 # Dataset & Dataloader
 # =====================
 transforms_dict = get_transforms()
 label_transform = LabelTransform()
 
-<<<<<<< HEAD
-train_dataset = CityScapes(
-=======
+
 train_dataset = CityScapes_aug(
->>>>>>> 0144a2a421f9190a15140ae15274235a332c45ce
     root_dir=data_dir,
     split='train',
     transform=transforms_dict['train'],
     target_transform=label_transform
 )
 
-<<<<<<< HEAD
-val_dataset = CityScapes(
-=======
+
 val_dataset = CityScapes_aug(
->>>>>>> 0144a2a421f9190a15140ae15274235a332c45ce
     root_dir=data_dir,
     split='val',
     transform=transforms_dict['val'],
@@ -161,14 +117,10 @@ val_dataset = CityScapes_aug(
 )
 
 
-<<<<<<< HEAD
-train_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=2)
-val_dataloader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=2)
-=======
+
 
 train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=2)
 val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=2)
->>>>>>> 0144a2a421f9190a15140ae15274235a332c45ce
 
 # =====================
 # Model Setup
@@ -350,8 +302,6 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
     val_accuracy = 100. * correct / total
     iou_per_class = total_intersection / total_union
     miou = torch.nanmean(iou_per_class).item()
-<<<<<<< HEAD
-=======
     # Converti dizionario in lista allineata con iou_per_class
     weight_tensor = torch.tensor([weights.get(i, 0.0) for i in range(len(iou_per_class))], device=iou_per_class.device)
 
@@ -359,7 +309,6 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
     valid_mask = ~torch.isnan(iou_per_class)
     weighted_iou = torch.nansum(iou_per_class * weight_tensor) / torch.sum(weight_tensor[valid_mask])
     wmiou = weighted_iou.item()
->>>>>>> 0144a2a421f9190a15140ae15274235a332c45ce
 
     print(f'Validation Loss: {val_loss:.6f} | Acc: {val_accuracy:.2f}% | mIoU: {miou:.4f}')
 
@@ -382,12 +331,12 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
-    checkpoint_path = os.path.join(save_dir, 'checkpoints_ema10_06.pth')
+    checkpoint_path = os.path.join(save_dir, 'checkpoints.pth')
     var_model = "STDC1"
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}ext_ema10_06"
+    project_name = f"{var_model}jitter_saturation_blur_bright_noflip"
 
     # 🔹 Ripristina da checkpoint locale se esiste
     if os.path.exists(checkpoint_path):
