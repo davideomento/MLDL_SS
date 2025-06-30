@@ -193,9 +193,11 @@ criterion_adv = nn.BCEWithLogitsLoss()
 num_epochs = 50
 max_iter = num_epochs
 
-# =====================
-# Training & Validation
-# =====================
+def adjust_lambda_adv(current_epoch, max_epoch = 50, max_lambda=0.1, start_lambda=0.01):
+    progress = current_epoch / max_epoch
+    return start_lambda + (max_lambda - start_lambda) * progress
+
+
 def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, criterion_adv, optimizer_seg, optimizer_disc, lr_seg, lr_disc):
     model.train()
     discriminator.train()
@@ -210,9 +212,12 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
         inputs_s, targets_s = inputs_s.to(device), targets_s.to(device)
         inputs_t = inputs_t.to(device)
 
-        # Segmentation loss
+        # ======================
+        # 1. Segmentazione - Source
+        # ======================
         optimizer_seg.zero_grad()
         outputs_s = model(inputs_s)
+
         alpha = 1
         if isinstance(outputs_s, (tuple, list)) and len(outputs_s) == 3:
             main_out, aux1_out, aux2_out = outputs_s
@@ -227,36 +232,48 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
         loss_seg.backward()
         optimizer_seg.step()
 
-        # Adversarial loss
-        optimizer_disc.zero_grad()
-        # Adversarial loss
+        # ======================
+        # 2. Discriminatore (solo dopo 5 epoche)
+        # ======================
+        if epoch > 5:
+            optimizer_disc.zero_grad()
+            outputs_s_detached = outputs_s[0].detach()
+            outputs_t = model(inputs_t)
+            outputs_t_detached = outputs_t[0].detach()
 
-        outputs_s_detached = outputs_s[0].detach()  # Disattiva il gradiente per l'output della rete principale
-        outputs_t = model(inputs_t)
-        outputs_t_detached = outputs_t[0].detach()  # Disattiva il gradiente per l'output della rete principale
-        
-        outputs_t = model(inputs_t)
+            pred_s = discriminator(torch.softmax(outputs_s_detached, dim=1))
+            pred_t = discriminator(torch.softmax(outputs_t_detached, dim=1))
 
-        pred_s = discriminator(outputs_s_detached)
-        pred_t = discriminator(outputs_t_detached)
+            loss_disc = criterion_adv(pred_s, torch.ones_like(pred_s)) + \
+                        criterion_adv(pred_t, torch.zeros_like(pred_t))
 
-        pred_s = discriminator(torch.softmax(outputs_s_detached, dim=1))
-        pred_t = discriminator(torch.softmax(outputs_t_detached, dim=1))
+            loss_disc.backward()
+            optimizer_disc.step()
+        else:
+            loss_disc = torch.tensor(0.0, device=device)
 
+        # ======================
+        # 3. Adversarial loss sul segmentatore (solo dopo 5 epoche)
+        # ======================
+        if epoch > 5:
+            optimizer_seg.zero_grad()
+            outputs_t = model(inputs_t)
+            pred_t = discriminator(torch.softmax(outputs_t[0], dim=1))
 
-        loss_disc = criterion_adv(pred_s, torch.ones_like(pred_s)) + criterion_adv(pred_t, torch.zeros_like(pred_t))
-        loss_disc.backward()
-        optimizer_disc.step()
+            loss_adv = criterion_adv(pred_t, torch.ones_like(pred_t))  # il segmentatore cerca di "ingannare" il discriminatore
+            lambda_adv = adjust_lambda_adv(current_epoch=epoch)
+            (lambda_adv * loss_adv).backward()
+            optimizer_seg.step()
+        else:
+            loss_adv = torch.tensor(0.0, device=device)
+            lambda_adv = 0.0  # per chiarezza, anche se non usato
 
-        optimizer_seg.zero_grad()
-        outputs_t = model(inputs_t)
-        pred_t = discriminator(outputs_t[0])
-        loss_adv = criterion_adv(pred_t, torch.ones_like(pred_t))  # il segmentatore vuole che il discriminatore "pensi" target come source
-        loss_adv.backward()
-        optimizer_seg.step()        
-
-        running_loss += loss_seg.item() + loss_adv.item() + loss_disc.item()
+        # ======================
+        # 4. Logging
+        # ======================
+        running_loss += loss_seg.item() + lambda_adv * loss_adv.item() + loss_disc.item()
         loop.set_postfix(loss=running_loss / (batch_idx + 1))
+
 
     # ⬇️ Salvataggio modello e logging wandb dopo il training dell'epoca
     mean_loss = running_loss / len(loop)
