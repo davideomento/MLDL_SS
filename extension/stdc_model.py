@@ -200,7 +200,7 @@ class STDC_Seg(nn.Module):
 
         elif backbone == 'STDC2':
             self.backbone = STDCNet1446()
-            feat_channels = [64, 256, 512, 1024, 1024]
+            feat_channels = [64, 512, 1024, 2048, 2048]
             # Per STDC2: feat2 ha 64 canali, fusion_input (prima di fusion) avrà sempre 320
             fusion_in_channels = 64 + 320  # = 384
         else:
