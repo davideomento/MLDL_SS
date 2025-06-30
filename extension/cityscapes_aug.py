@@ -4,14 +4,13 @@ import torch
 from torch.utils.data import Dataset
 import numpy as np
 
-class CityScapes(Dataset):
+class CityScapes_aug(Dataset):
     def __init__(self, root_dir, split='train', transform=None, target_transform=None):
         self.root_dir = root_dir
         self.split = split
-        self.transform = transform
+        self.transform = transform  # ora dovrebbe trasformare immagine+maschera insieme
         self.target_transform = target_transform
 
-        # Ensure correct subfolders; adjust if your structure differs
         self.image_dir = os.path.join(root_dir, 'images', split)
         self.label_dir = os.path.join(root_dir, 'gtFine', split)
 
@@ -26,7 +25,6 @@ class CityScapes(Dataset):
             for file_name in sorted(os.listdir(city_img_dir)):
                 if file_name.endswith('_leftImg8bit.png'):
                     img_path = os.path.join(city_img_dir, file_name)
-                    # Construct corresponding gtFine filename
                     label_name = file_name.replace('_leftImg8bit.png', '_gtFine_labelTrainIds.png')
                     lbl_path = os.path.join(city_label_dir, label_name)
                     if os.path.isfile(lbl_path):
@@ -37,17 +35,18 @@ class CityScapes(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        img = Image.open(self.image_paths[idx]).convert("RGB")
-        mask = Image.open(self.label_paths[idx]).convert("L")
-        # Expecting transforms that accept both image and mask
-        img_transform, mask_transform = self.transform
+        img = np.array(Image.open(self.image_paths[idx]).convert("RGB"))
+        mask = np.array(Image.open(self.label_paths[idx]).convert("L"))
 
-        img = img_transform(img)
-        
-        mask = mask_transform(mask)
-        mask = torch.as_tensor(np.array(mask), dtype=torch.long)
+        if self.transform:
+            # Albumentations expects dict: {"image":..., "mask":...}
+            augmented = self.transform(image=img, mask=mask)
+            img = augmented['image']
+            mask = augmented['mask']
 
-        # Apply label-only transforms
+        # Convert mask a torch tensor long (per CrossEntropyLoss)
+        mask = torch.as_tensor(mask, dtype=torch.long)
+
         if self.target_transform:
             mask = self.target_transform(mask)
 
