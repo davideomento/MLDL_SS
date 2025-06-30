@@ -49,7 +49,7 @@ print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir_train = '/content/MLDL_SS/GTA5'
 data_dir_val = '/content/MLDL_SS/Cityscapes/Cityspaces'    
-save_dir = os.path.join(base_path, 'checkpoints_adversarial_official_official_official')
+save_dir = os.path.join(base_path, 'checkpoints_adversarial_discriminator_over_5_increasing_weight_loss_adv')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -420,13 +420,13 @@ def validate(model, val_dataloader, criterion_seg, epoch, num_classes=19):
 
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
-    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet_adversarial.pth')
+    checkpoint_path = os.path.join(save_dir, 'checkpoint.pth')
     var_model = "bisenet_adversarial" 
     best_miou = 0
     start_epoch = 1
     lr_seg = 2.5e-2
     lr_disc = 1e-4
-    project_name = f"{var_model}_official_official_official"
+    project_name = f"{var_model}_discriminator_over_5_increasing_weight_loss_adv"
 
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
