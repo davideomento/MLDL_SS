@@ -15,7 +15,6 @@ from torchvision.transforms import functional as TF
 from torchvision.transforms.functional import InterpolationMode
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
 from stdc_model import *
 #from stdc_m_andreprova import *
 from albumentations.pytorch import ToTensorV2
@@ -51,7 +50,7 @@ set_seed(42)
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-save_dir = os.path.join(base_path, 'checkpoints_30_06_jitter_saturation_blur_bright_noflip')
+save_dir = os.path.join(base_path, 'checkpoints_ema10_06')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -68,30 +67,28 @@ class LabelTransform():
 
 ###############
 
-# Trasformazione per l'immagine
-img_transform = A.Compose([
-    A.Resize(height=512, width=1024),  # Resize fisso
-    A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5),
-    A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0), p=0.5),
-    #A.GaussNoise(var_limit=(10.0, 50.0), p=0.5),
-    #A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, p=0.5),
-    A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),  # Low intensity
-    A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=10, val_shift_limit=10, p=0.5),  # Subtle color variation
-    ToTensorV2(),
-    A.Normalize(mean=(0.485, 0.456, 0.406),
-                         std=(0.229, 0.224, 0.225)),
-])
-
-# Trasformazione per la mask (solo resize, no toTensor, no normalize)
-def mask_transform(mask):
-    return TF.resize(mask, (512, 1024), interpolation=InterpolationMode.NEAREST)
-
-
 def get_transforms():
+    train_transform = A.Compose([
+        A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05, p=0.3),
+        A.RandomScale(scale_limit=(0.8, 1.2), p=0.7),
+        A.RandomCrop(height=512, width=1024),
+        A.HorizontalFlip(p=0.3),
+        A.Resize(height=512, width=1024),
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ToTensorV2(),
+    ])
+
+    val_transform = A.Compose([
+        A.Resize(height=512, width=1024),
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ToTensorV2(),
+    ])
+
     return {
-        'train': (img_transform, mask_transform),
-        'val': (img_transform, mask_transform)
+        'train': train_transform,
+        'val': val_transform
     }
+
 
 
 # =====================
@@ -100,7 +97,6 @@ def get_transforms():
 transforms_dict = get_transforms()
 label_transform = LabelTransform()
 
-
 train_dataset = CityScapes_aug(
     root_dir=data_dir,
     split='train',
@@ -108,14 +104,12 @@ train_dataset = CityScapes_aug(
     target_transform=label_transform
 )
 
-
 val_dataset = CityScapes_aug(
     root_dir=data_dir,
     split='val',
     transform=transforms_dict['val'],
     target_transform=label_transform
 )
-
 
 
 
@@ -331,12 +325,12 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
-    checkpoint_path = os.path.join(save_dir, 'checkpoints.pth')
+    checkpoint_path = os.path.join(save_dir, 'checkpoints_ema10_06.pth')
     var_model = "STDC1"
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}jitter_saturation_blur_bright_noflip"
+    project_name = f"{var_model}ext_ema10_06"
 
     # 🔹 Ripristina da checkpoint locale se esiste
     if os.path.exists(checkpoint_path):
@@ -380,4 +374,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
