@@ -50,7 +50,7 @@ set_seed(42)
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-save_dir = os.path.join(base_path, 'checkpoints_30_06_bright_saturation_jitter_blur_noflip')
+save_dir = os.path.join(base_path, 'checkpoints_30_06_bright_saturation_jitter_blur_noflip_STDC2')
 os.makedirs(save_dir, exist_ok=True)
 
 
