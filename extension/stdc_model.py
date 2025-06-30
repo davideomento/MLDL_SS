@@ -187,7 +187,7 @@ class SPPM(nn.Module):
         return self.relu(self.bn(self.out_conv(out)))
 
 class STDC_Seg(nn.Module):
-    def __init__(self, num_classes=19, backbone='STDC1', use_detail=True):
+    def __init__(self, num_classes=19, backbone='STDC2', use_detail=True):
         super(STDC_Seg, self).__init__()
         self.use_detail = use_detail
         self.num_classes = num_classes
