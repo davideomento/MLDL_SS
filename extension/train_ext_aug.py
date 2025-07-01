@@ -50,7 +50,7 @@ set_seed(42)
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-save_dir = os.path.join(base_path, 'checkpoints_30_06_bright_saturation_jitter_blur_noflip_STDC2')
+save_dir = os.path.join(base_path, 'checkpoints_STDC2_paperlike')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -335,7 +335,7 @@ def main():
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}_bright_saturation_jitter_blur_noflip"
+    project_name = f"{var_model}_paperlike"
 
     # 🔹 Ripristina da checkpoint locale se esiste
     if os.path.exists(checkpoint_path):
