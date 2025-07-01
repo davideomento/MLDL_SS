@@ -39,17 +39,21 @@ class DetailLoss(nn.Module):
         self.eps = eps
         self.bce = nn.BCEWithLogitsLoss()
 
-    def forward(self, pred, target):
+    def forward(self, pred, target, valid_mask=None):
         pred = pred.squeeze(1)
         target = target.squeeze(1)
-        bce = self.bce(pred, target) # BCE with logits (no need for sigmoid)
-        pred_sigmoid = torch.sigmoid(pred)
+        if valid_mask is not None:
+            pred = pred[valid_mask]
+            target = target[valid_mask]
 
+        bce = self.bce(pred, target)  # BCE with logits
+        pred_sigmoid = torch.sigmoid(pred)
         intersection = (pred_sigmoid * target).sum()
         union = pred_sigmoid.pow(2).sum() + target.pow(2).sum()
 
         dice = 1 - (2 * intersection + self.eps) / (union + self.eps)
         return dice + bce
+
     
     
 # Calcola la mappa di dettaglio come edge map usando un kernel Laplaciano

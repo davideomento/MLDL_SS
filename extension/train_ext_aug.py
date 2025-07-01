@@ -69,13 +69,17 @@ class LabelTransform():
 
 def get_transforms():
     train_transform = A.Compose([
-        A.Resize(height=512, width=1024),
         A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5),
-        A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0), p=0.5),
+        A.RandomScale(scale_limit=(0.125, 1.5), p=0.5),  # Slight scaling
+        A.RandomCrop(height=512, width=1024, p=0.5),  # Random crop to maintain size
+        A.HorizontalFlip(p=0.5),  # Flip horizontally
+        A.Resize(height=512, width=1024),
+
+        #A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0), p=0.5),
         #A.GaussNoise(var_limit=(10.0, 50.0), p=0.5),
         #A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, p=0.5),
-        A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),  # Low intensity
-        A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=10, val_shift_limit=10, p=0.5),  # Subtle color variation
+        #A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),  # Low intensity
+        #A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=10, val_shift_limit=10, p=0.5),  # Subtle color variation
         A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2(),
     ])
@@ -115,8 +119,8 @@ val_dataset = CityScapes_aug(
 
 
 
-train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=2)
-val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=2)
+train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_workers=2)
 
 # =====================
 # Model Setup
@@ -130,8 +134,8 @@ class_weights = torch.tensor([
     6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
 ], dtype=torch.float).to(device)
 
-criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
-optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
+criterion = nn.CrossEntropyLoss(ignore_index=255)
+optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=5e-4)
 
 num_epochs = 50
 max_iter = num_epochs
@@ -163,8 +167,7 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr, λ=1.0):
             detail_target = get_detail_target(targets)
             detail_map = F.interpolate(detail_map, size=detail_target.shape[-2:], mode='bilinear', align_corners=False)
             loss_detail = detail_criterion(detail_map, detail_target)
-
-
+            
             loss = loss_seg + λ * loss_detail
         else:
             output = torch.nn.functional.interpolate(output, size=targets.shape[1:], mode='bilinear', align_corners=False)
