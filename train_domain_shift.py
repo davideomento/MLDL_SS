@@ -168,6 +168,11 @@ class_weights = torch.tensor([
 optimizer_seg = torch.optim.SGD(model.parameters(), lr=2.5e-4)
 optimizer_disc = torch.optim.SGD(discriminator.parameters(), lr=1e-4)
 
+def bce_with_logits_ignore(pred, target, ignore_index=255):
+    mask = (target != ignore_index)
+    loss = F.binary_cross_entropy_with_logits(pred, target.float(), reduction='none')
+    return loss[mask].mean()
+
 criterion_seg = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
 criterion_adv = nn.BCEWithLogitsLoss()
 
@@ -217,14 +222,14 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
 
         pred_s = discriminator(outputs_s_detached)
         pred_t = discriminator(outputs_t_detached)
-        loss_disc = criterion_adv(pred_s, torch.ones_like(pred_s)) + criterion_adv(pred_t, torch.zeros_like(pred_t))
+        loss_disc = bce_with_logits_ignore(pred_s, torch.ones_like(pred_s)) + bce_with_logits_ignore(pred_t, torch.zeros_like(pred_t))
         loss_disc.backward()
         optimizer_disc.step()
 
         optimizer_seg.zero_grad()
         outputs_t = model(inputs_t)
         pred_t = discriminator(outputs_t[0])
-        loss_adv = criterion_adv(pred_t, torch.ones_like(pred_t))  # il segmentatore vuole che il discriminatore "pensi" target come source
+        loss_adv = bce_with_logits_ignore(pred_t, torch.ones_like(pred_t))  # il segmentatore vuole che il discriminatore "pensi" target come source
         loss_adv.backward()
         optimizer_seg.step()        
 
