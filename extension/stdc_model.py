@@ -39,12 +39,13 @@ class DetailLoss(nn.Module):
         self.eps = eps
         self.bce = nn.BCEWithLogitsLoss()
 
-    def forward(self, pred, target, valid_mask=None):
+    def forward(self, pred, target):
         pred = pred.squeeze(1)
         target = target.squeeze(1)
-        if valid_mask is not None:
-            pred = pred[valid_mask]
-            target = target[valid_mask]
+
+        valid_mask = (target != 255)
+        pred = pred[valid_mask]
+        target = target[valid_mask]
 
         bce = self.bce(pred, target)  # BCE with logits
         pred_sigmoid = torch.sigmoid(pred)
