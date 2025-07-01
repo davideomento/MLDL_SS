@@ -1,3 +1,4 @@
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -7,6 +8,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import wandb
+import fvcore.nn.flop_count as fc
+from fvcore.nn import FlopCountAnalysis 
 
 # ================================
 # Ambiente (Colab)
@@ -142,7 +145,6 @@ def save_metrics_on_wandb(epoch, metrics_train, metrics_val):
             "val_params": metrics_val['trainable_params']
         })
 
-
 class ClassImportanceWeights:
     """
     Fornisce i pesi delle classi basati sulla pericolosità in caso di impatto veicolare.
@@ -162,7 +164,7 @@ class ClassImportanceWeights:
             9: 0.2,   # terrain
             10: 0.1,  # sky
             11: 1.0,  # person
-            12: 0.9,  # rider
+            12: 1.0,  # rider
             13: 0.7,  # car
             14: 0.8,  # truck
             15: 0.8,  # bus
