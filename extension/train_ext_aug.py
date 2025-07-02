@@ -23,6 +23,25 @@ from cityscapes_aug import CityScapes_aug
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb, ClassImportanceWeights
 from utils import poly_lr_scheduler
 
+
+def load_pretrained_backbone(model, pretrained_path, device):
+    """
+    Carica i pesi pre-addestrati solo per il backbone STDC2 nel modello STDC_Seg.
+    """
+    print(f"📥 Caricamento pesi pretrained da {pretrained_path}")
+    pretrained_dict = torch.load(pretrained_path, map_location=device)
+    
+    model_dict = model.state_dict()
+    
+    # Filtra i pesi del backbone per fare il load solo su quelli presenti
+    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict and "backbone" in k}
+    
+    # Aggiorna i pesi del modello
+    model_dict.update(pretrained_dict)
+    model.load_state_dict(model_dict)
+    print(f"✅ Pesi pretrained caricati nel backbone.")
+
+
 class CombinedLoss(nn.Module):
     def __init__(self, weight=None):
         super().__init__()
@@ -255,11 +274,16 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 
 def main():
     checkpoint_path = os.path.join(save_dir, 'checkpoints.pth')
+    pretrained_backbone_path = '/content/drive/MyDrive/checkpoints/STDC2-Seg/model_maxmlOU50.pth'  # metti qui il path corretto
+
     var_model = "STDC2"
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
     project_name = f"{var_model}_provatati"
+
+    if not os.path.exists(checkpoint_path):
+        load_pretrained_backbone(model, pretrained_backbone_path, device)
 
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
