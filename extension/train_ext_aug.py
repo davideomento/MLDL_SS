@@ -23,7 +23,6 @@ from cityscapes_aug import CityScapes_aug
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb, ClassImportanceWeights
 from utils import poly_lr_scheduler
 
-# ✅ LOSS: Combined Loss con CE + Dice Loss
 class CombinedLoss(nn.Module):
     def __init__(self, weight=None):
         super().__init__()
@@ -32,11 +31,12 @@ class CombinedLoss(nn.Module):
 
     def forward(self, input, target):
         ce_loss = self.ce(input, target)
-        dice_loss = self.dice(input, target)
-        return ce_loss + dice_loss
 
-weights_obj = ClassImportanceWeights()
-weights = weights_obj.get_weights()
+        # ✅ DiceLoss richiede target con shape [B, 1, H, W]
+        target_dice = target.unsqueeze(1)  # aggiunge la dimensione canale
+
+        dice_loss = self.dice(input, target_dice)
+        return ce_loss + dice_loss
 
 def set_seed(seed=42):
     torch.manual_seed(seed)
