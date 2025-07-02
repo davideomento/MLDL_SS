@@ -60,7 +60,7 @@ set_seed(42)
 
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-save_dir = os.path.join(base_path, 'checkpoints_STDC2_pretrained_weight')
+save_dir = os.path.join(base_path, 'checkpoints_STDC2_pretrained_weight_new')
 os.makedirs(save_dir, exist_ok=True)
 
 class LabelTransform():
@@ -262,7 +262,7 @@ def main():
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}_pretrained_weight"
+    project_name = f"{var_model}_pretrained_weight_new"
 
     load_pretrained_backbone(model, pretrained_backbone_path, device)
 
