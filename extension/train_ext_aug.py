@@ -26,6 +26,18 @@ from stdc_model import STDC_Seg
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb, ClassImportanceWeights
 from utils import poly_lr_scheduler
 
+from monai.losses import DiceLoss
+
+class CombinedLoss(nn.Module):
+    def __init__(self, weight=None):
+        super().__init__()
+        self.ce = nn.CrossEntropyLoss(weight=weight, ignore_index=255)
+        self.dice = DiceLoss(to_onehot_y=True, softmax=True)
+
+    def forward(self, input, target):
+        ce_loss = self.ce(input, target)
+        dice_loss = self.dice(input, target)
+        return ce_loss + dice_loss
 
 
 weights_obj = ClassImportanceWeights()
@@ -69,17 +81,16 @@ class LabelTransform():
 
 def get_transforms():
     train_transform = A.Compose([
-        A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5),
-        A.RandomScale(scale_limit=(0.125, 1.5), p=0.5),  # Slight scaling
-        A.RandomCrop(height=512, width=1024, p=0.5),  # Random crop to maintain size
-        A.HorizontalFlip(p=0.5),  # Flip horizontally
-        A.Resize(height=512, width=1024),
-
-        #A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0), p=0.5),
-        #A.GaussNoise(var_limit=(10.0, 50.0), p=0.5),
-        #A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, p=0.5),
-        #A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),  # Low intensity
-        #A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=10, val_shift_limit=10, p=0.5),  # Subtle color variation
+        A.RandomResizedCrop(height=512, width=1024, scale=(0.5, 2.0), ratio=(1.5, 2.5), p=1.0),
+        A.HorizontalFlip(p=0.5),
+        A.OneOf([
+            A.GaussianBlur(blur_limit=(3, 5), sigma_limit=(0.1, 2.0), p=0.5),
+            A.GaussNoise(var_limit=(10.0, 50.0), p=0.5),
+        ], p=0.3),
+        A.OneOf([
+            A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=1.0),
+            A.HueSaturationValue(hue_shift_limit=10, sat_shift_limit=20, val_shift_limit=20, p=1.0),
+        ], p=0.3),
         A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2(),
     ])
@@ -90,10 +101,7 @@ def get_transforms():
         ToTensorV2(),
     ])
 
-    return {
-        'train': train_transform,
-        'val': val_transform
-    }
+    return {'train': train_transform, 'val': val_transform}
 
 
 
@@ -134,7 +142,7 @@ class_weights = torch.tensor([
     6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
 ], dtype=torch.float).to(device)
 
-criterion = nn.CrossEntropyLoss(ignore_index=255)
+criterion = CombinedLoss(weight=class_weights)
 optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=5e-4)
 
 num_epochs = 50
