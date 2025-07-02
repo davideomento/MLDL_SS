@@ -50,7 +50,7 @@ set_seed(42)
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-save_dir = os.path.join(base_path, 'checkpoints_STDC2_paperlike')
+save_dir = os.path.join(base_path, 'checkpoints_STDC2_dataaug')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -70,19 +70,20 @@ class LabelTransform():
 def get_transforms():
     train_transform = A.Compose([
         A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5),
-        A.RandomScale(scale_limit=(0.125, 1.5), p=0.5),  # Slight scaling
-        A.RandomCrop(height=512, width=1024, p=0.5),  # Random crop to maintain size
+        #A.RandomScale(scale_limit=(0.125, 1.5), p=0.5),  # Slight scaling
+        #A.RandomCrop(height=512, width=1024, p=0.5),  # Random crop to maintain size
         A.HorizontalFlip(p=0.5),  # Flip horizontally
         A.Resize(height=512, width=1024),
 
-        #A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0), p=0.5),
-        #A.GaussNoise(var_limit=(10.0, 50.0), p=0.5),
+        A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0), p=0.5),
+        A.GaussNoise(var_limit=(10.0, 50.0), p=0.5),
         #A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, p=0.5),
-        #A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),  # Low intensity
-        #A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=10, val_shift_limit=10, p=0.5),  # Subtle color variation
+        A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),  # Low intensity
+        A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=10, val_shift_limit=10, p=0.5),  # Subtle color variation
         A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2(),
     ])
+    
 
     val_transform = A.Compose([
         A.Resize(height=512, width=1024),
@@ -335,7 +336,7 @@ def main():
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}_paperlike"
+    project_name = f"{var_model}_dataaug"
 
     # 🔹 Ripristina da checkpoint locale se esiste
     if os.path.exists(checkpoint_path):
