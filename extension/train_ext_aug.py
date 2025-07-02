@@ -253,7 +253,7 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
     val_accuracy = 100. * correct / total
     iou_per_class = total_intersection / total_union
     miou = torch.nanmean(iou_per_class).item()
-    weight_tensor = torch.tensor([class_weights.get(i, 0.0) for i in range(len(iou_per_class))], device=iou_per_class.device)
+    weight_tensor = class_weights.to(device=iou_per_class.device)
     valid_mask = ~torch.isnan(iou_per_class)
     weighted_iou = torch.nansum(iou_per_class * weight_tensor) / torch.sum(weight_tensor[valid_mask])
     wmiou = weighted_iou.item()
