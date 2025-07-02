@@ -13,7 +13,7 @@ import wandb
 import albumentations as A
 from torchvision.transforms import functional as TF
 from torchvision.transforms.functional import InterpolationMode
-from torch.utils.data import DataLoader
+from torch.utils.data import Subset, DataLoader
 from tqdm import tqdm
 from stdc_model import STDC_Seg
 from albumentations.pytorch import ToTensorV2
@@ -102,8 +102,27 @@ label_transform = LabelTransform()
 train_dataset = CityScapes_aug(root_dir=data_dir, split='train', transform=transforms_dict['train'], target_transform=label_transform)
 val_dataset = CityScapes_aug(root_dir=data_dir, split='val', transform=transforms_dict['val'], target_transform=label_transform)
 
+
+# Calcolo la lunghezza del 10%
+train_len_10 = int(0.1 * len(train_dataset))
+val_len_10 = int(0.1 * len(val_dataset))
+
+# Prendo indici casuali senza ripetizioni
+train_indices_10 = np.random.choice(len(train_dataset), train_len_10, replace=False)
+val_indices_10 = np.random.choice(len(val_dataset), val_len_10, replace=False)
+
+# Creo i subset
+train_subset_10 = Subset(train_dataset, train_indices_10)
+val_subset_10 = Subset(val_dataset, val_indices_10)
+
+# Creo i dataloader con i subset
+train_dataloader_10 = DataLoader(train_subset_10, batch_size=4, shuffle=True, num_workers=2)
+val_dataloader_10 = DataLoader(val_subset_10, batch_size=4, shuffle=False, num_workers=2)
+
+
+'''
 train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=2)
-val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=2)
+val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=2)'''
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
