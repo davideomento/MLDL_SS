@@ -172,7 +172,8 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr, λ=1.0):
 
         if isinstance(output, tuple):  # con detail head
             seg_out, detail_map = output
-            seg_out = torch.nn.functional.interpolate(seg_out, size=targets.shape[1:], mode='bilinear', align_corners=False)
+            seg_out = torch.nn.functional.interpolate(seg_out, size=targets.shape[-2:], mode='bilinear', align_corners=False)
+
             loss_seg = seg_loss_fn(seg_out, targets)
 
             detail_target = get_detail_target(targets)
