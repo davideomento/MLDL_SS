@@ -27,15 +27,24 @@ class CombinedLoss(nn.Module):
     def __init__(self, weight=None):
         super().__init__()
         self.ce = nn.CrossEntropyLoss(weight=weight, ignore_index=255)
+        
         self.dice = DiceLoss(to_onehot_y=True, softmax=True)
 
     def forward(self, input, target):
         ce_loss = self.ce(input, target)
 
-        # ✅ DiceLoss richiede target con shape [B, 1, H, W]
-        target_dice = target.unsqueeze(1)  # aggiunge la dimensione canale
+        # Aggiungi la dimensione canale al target per DiceLoss
+        target_dice = target.unsqueeze(1)  # shape [B, 1, H, W]
 
-        dice_loss = self.dice(input, target_dice)
+        # Crea una maschera per ignorare i pixel con valore 255 nel target originale
+        mask = (target != 255).unsqueeze(1)  # shape [B, 1, H, W]
+
+        # Applica la maschera su input e target_dice
+        input_masked = input * mask  # maschera i pixel da ignorare
+        target_masked = target_dice * mask
+
+        dice_loss = self.dice(input_masked, target_masked)
+
         return ce_loss + dice_loss
 
 def set_seed(seed=42):
