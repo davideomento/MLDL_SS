@@ -163,6 +163,9 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr, λ=1.0):
 
     for batch_idx, (inputs, targets) in loop:
         inputs, targets = inputs.to(device).float(), targets.to(device).long()
+        if targets.ndim == 3:
+            targets = targets.unsqueeze(1)  # 🔧 Aggiunge la dimensione del canale: [B, H, W] → [B, 1, H, W]
+
 
         optimizer.zero_grad()
         output = model(inputs)
