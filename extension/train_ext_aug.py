@@ -116,8 +116,8 @@ train_subset_10 = Subset(train_dataset, train_indices_10)
 val_subset_10 = Subset(val_dataset, val_indices_10)
 
 # Creo i dataloader con i subset
-train_dataloader_10 = DataLoader(train_subset_10, batch_size=4, shuffle=True, num_workers=2)
-val_dataloader_10 = DataLoader(val_subset_10, batch_size=4, shuffle=False, num_workers=2)
+train_dataloader = DataLoader(train_subset_10, batch_size=4, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_subset_10, batch_size=4, shuffle=False, num_workers=2)
 
 
 '''
