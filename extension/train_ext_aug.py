@@ -42,28 +42,23 @@ def load_pretrained_backbone(model, pretrained_path, device):
     print(f"✅ Pesi pretrained caricati nel backbone.")
 
 
+
 class CombinedLoss(nn.Module):
     def __init__(self, weight=None):
         super().__init__()
         self.ce = nn.CrossEntropyLoss(weight=weight, ignore_index=255)
-        
         self.dice = DiceLoss(to_onehot_y=True, softmax=True)
 
     def forward(self, input, target):
         ce_loss = self.ce(input, target)
 
-        # Aggiungi la dimensione canale al target per DiceLoss
-        target_dice = target.unsqueeze(1)  # shape [B, 1, H, W]
-
-        # Crea una maschera per ignorare i pixel con valore 255 nel target originale
-        mask = (target != 255).unsqueeze(1)  # shape [B, 1, H, W]
-
-        # Applica la maschera su input e target_dice
-        input_masked = input * mask  # maschera i pixel da ignorare
+        # Aggiunta maschera ignorando 255
+        mask = (target != 255).unsqueeze(1).bool()  # ✅ bool
+        input_masked = input * mask
+        target_dice = target.unsqueeze(1)
         target_masked = target_dice * mask
 
         dice_loss = self.dice(input_masked, target_masked)
-
         return ce_loss + dice_loss
 
 def set_seed(seed=42):
@@ -132,6 +127,9 @@ class_weights = torch.tensor([
     2.6, 6.9, 3.5, 3.6, 3.6, 3.8, 3.4, 3.5, 5.1, 4.7,
     6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
 ], dtype=torch.float).to(device)
+
+class_weights = class_weights / class_weights.sum()
+
 
 criterion = CombinedLoss(weight=class_weights)
 optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=5e-4)
@@ -238,24 +236,29 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
             loss = criterion(outputs, targets)
 
             val_loss += loss.item()
+
             _, predicted = outputs.max(1)
-            correct += (predicted == targets).sum().item()
-            total += targets.numel()
+
+            # 🔧 Ignora pixel con valore 255 in accuracy
+            valid_mask = (targets != 255)
+            correct += (predicted[valid_mask] == targets[valid_mask]).sum().item()
+            total += valid_mask.sum().item()
 
             inter, uni = calculate_iou(predicted, targets, num_classes, ignore_index=255)
             total_intersection += inter
             total_union += uni
 
             loss_values.append(loss.item())
-            accuracy_values.append((predicted == targets).sum().item() / targets.numel())
+            accuracy_values.append((predicted[valid_mask] == targets[valid_mask]).sum().item() / valid_mask.sum().item())
 
     val_loss /= len(val_loader)
     val_accuracy = 100. * correct / total
     iou_per_class = total_intersection / total_union
     miou = torch.nanmean(iou_per_class).item()
+
     weight_tensor = class_weights.to(device=iou_per_class.device)
-    valid_mask = ~torch.isnan(iou_per_class)
-    weighted_iou = torch.nansum(iou_per_class * weight_tensor) / torch.sum(weight_tensor[valid_mask])
+    valid_mask_iou = ~torch.isnan(iou_per_class)
+    weighted_iou = torch.nansum(iou_per_class * weight_tensor) / torch.sum(weight_tensor[valid_mask_iou])
     wmiou = weighted_iou.item()
 
     print(f'Validation Loss: {val_loss:.6f} | Acc: {val_accuracy:.2f}% | mIoU: {miou:.4f}')
@@ -282,8 +285,7 @@ def main():
     init_lr = 2.5e-2
     project_name = f"{var_model}_pretrained_weight"
 
-    if not os.path.exists(checkpoint_path):
-        load_pretrained_backbone(model, pretrained_backbone_path, device)
+    load_pretrained_backbone(model, pretrained_backbone_path, device)
 
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
