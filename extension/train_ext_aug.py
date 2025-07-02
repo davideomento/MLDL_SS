@@ -261,7 +261,7 @@ def main():
     var_model = "STDC2"
     best_miou = 0
     start_epoch = 1
-    init_lr = 2.5e-2
+    init_lrs = [1e-4, 1e-3]
     project_name = f"{var_model}_pretrained_weight_new"
 
     load_pretrained_backbone(model, pretrained_backbone_path, device)
@@ -283,7 +283,7 @@ def main():
     )
 
     for epoch in range(start_epoch, num_epochs + 1):
-        train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
+        train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lrs)
         val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
         save_metrics_on_wandb(epoch, train_loss, val_metrics)
 
