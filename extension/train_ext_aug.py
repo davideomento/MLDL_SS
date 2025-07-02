@@ -81,7 +81,7 @@ class LabelTransform():
 
 def get_transforms():
     train_transform = A.Compose([
-        A.RandomResizedCrop(height=512, width=1024, scale=(0.5, 2.0), ratio=(1.5, 2.5), p=1.0),
+        A.RandomResizedCrop(height=512, width=1024, scale=(0.5, 1.0), ratio=(1.5, 2.5), p=1.0),
         A.HorizontalFlip(p=0.5),
         A.OneOf([
             A.GaussianBlur(blur_limit=(3, 5), sigma_limit=(0.1, 2.0), p=0.5),
