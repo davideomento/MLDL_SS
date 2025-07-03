@@ -19,19 +19,19 @@ class SegHead(nn.Module):
     def forward(self, x):
         return self.block(x)
 
-#Estrae una detail map (un singolo canale)
+# Detail head on feat8 (stage3)
 class DetailHead(nn.Module):
-    def __init__(self, in_channels): 
-        super(DetailHead, self).__init__()
-        self.detail = nn.Sequential(
-            nn.Conv2d(in_channels, 64, 3, padding=1),
-            nn.BatchNorm2d(64),
+    def __init__(self, in_channels):
+        super().__init__()
+        self.block = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels//2, 3, padding=1, bias=False),
+            nn.BatchNorm2d(in_channels//2),
             nn.ReLU(inplace=True),
-            nn.Conv2d(64, 1, 1)
+            nn.Conv2d(in_channels//2, 1, 1)
         )
 
     def forward(self, x):
-        return self.detail(x)  # (B, 1, H, W)
+        return self.block(x)
     
 class DetailLoss(nn.Module):
     def __init__(self, eps=1.0):
@@ -115,6 +115,7 @@ class ConvBlock(torch.nn.Module):
     def forward(self, input):
         x = self.conv1(input)
         return self.relu(self.bn(x))
+    
 
 #Raffina le feature con l'attenzione: calcola la media spaziale di ogni canale (vettore di dim [B,C]) e poi lo passa a conv 1x1 + BatchNorm + Sigmoid per ottenere pesi per canale tra 0 e 1.
 # Moltiplica l'input per questi pesi, cioè aumenta o diminuisce l'importanza di ogni canale in base alla sua media spaziale. 
@@ -164,103 +165,89 @@ class FeatureFusionModule(torch.nn.Module):
         x = torch.add(x, feature)
         return x
 
-class STDC_Seg(nn.Module):
-    def __init__(self, num_classes=19, backbone='STDC2', use_detail=True):
-        super(STDC_Seg, self).__init__()
+class STDC(nn.Module):
+    def __init__(self, num_class=19, backbone='STDC2', use_aux=False, use_detail=False):
+        super().__init__()
+        assert not (use_aux and use_detail), "Only one of aux or detail at training"
+        self.use_aux = use_aux
         self.use_detail = use_detail
-        self.num_classes = num_classes
 
-        # Backbone and feature channels
+        # Backbone
         if backbone == 'STDC1':
             self.backbone = STDCNet813()
-            feat_channels = [32, 64, 256, 512, 1024]
         elif backbone == 'STDC2':
             self.backbone = STDCNet1446()
-            feat_channels = [32, 64, 256, 512, 1024]
         else:
-            raise ValueError("Invalid backbone")
-        self.feat_channels = feat_channels
+            raise ValueError("Unsupported backbone")
 
-        # Attention Refinement Modules on Stage5 (1/32) and Stage4 (1/16)
-        self.arm32 = AttentionRefinementModule(feat_channels[4], feat_channels[4])
-        self.arm16 = AttentionRefinementModule(feat_channels[3], feat_channels[3])
-        # Adjust channels after upsample
-        self.context32_conv = nn.Conv2d(feat_channels[4], feat_channels[3], kernel_size=1, bias=False)
-        self.context16_conv = nn.Conv2d(feat_channels[3], feat_channels[2], kernel_size=1, bias=False)
+        # Auxiliary heads (in training)
+        if use_aux:
+            self.aux3 = SegHead(256, num_class, num_class)
+            self.aux4 = SegHead(512, num_class, num_class)
+            self.aux5 = SegHead(1024, num_class, num_class)
 
-        # Global context via GAP (added to Stage3 level)
-        self.global_pool = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d(feat_channels[4], feat_channels[2], kernel_size=1, bias=False),
-            nn.BatchNorm2d(feat_channels[2]),
-            nn.ReLU(inplace=True)
-        )
+        # Global pooling and ARM modules
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.arm5 = AttentionRefinementModule(1024, 1024)
+        self.arm4 = AttentionRefinementModule(512, 512)
 
-        # Feature Fusion: fuse Stage3 context (1/8) with spatial path (feat2)
-        fusion_in_channels = feat_channels[2] + feat_channels[0]  # context + spatial
-        self.fusion = FeatureFusionModule(
-            num_classes=self.num_classes,
-            in_channels=fusion_in_channels
-        )
+        # Channel reductions via ConvBlock 1x1
+        self.conv5 = ConvBlock(1024, 256, kernel_size=1, stride=1, padding=0)
+        self.conv4 = ConvBlock(512, 256, kernel_size=1, stride=1, padding=0)
+
+        # Feature Fusion Module
+        self.ffm = FeatureFusionModule(num_classes=128, in_channels=512)
 
         # Segmentation head
-        self.seg_head = SegHead(in_channels=num_classes, mid_channels=64, num_classes=num_classes)
+        self.seg_head = SegHead(128, 128, num_class)
 
-        # Detail branch (spatial path)
-        if self.use_detail:
-            self.detail_head = DetailHead(feat_channels[0])  # low-level feature
-            self.detail_upsample = nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True)
+        # Detail head (apply on feat8, stage3)
+        if use_detail:
+            self.detail_head = DetailHead(256)
 
-        self.final_upsample = nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True)
-
-    def forward(self, x):
-        # Backbone features: feat2 (1/2), feat4 (1/4), feat8 (1/8), feat16 (1/16), feat32 (1/32)
+    def forward(self, x, is_training=False):
+        size = x.size()[2:]
         feat2, feat4, feat8, feat16, feat32 = self.backbone(x)
 
-        # Context path U-shaped fusion
-        # Stage5 -> Stage4
-        context32 = self.arm32(feat32)  # [B,1024, H/32, W/32]
-        up16 = F.interpolate(context32, size=feat16.shape[2:], mode='bilinear', align_corners=True)
-        up16 = self.context32_conv(up16)  # [B,512, H/16, W/16]
+        # Auxiliary outputs
+        if self.use_aux and is_training:
+            aux3 = self.aux3(feat8)
+            aux4 = self.aux4(feat16)
+            aux5 = self.aux5(feat32)
 
-        context16 = self.arm16(feat16)    # [B,512, H/16, W/16]
-        fused16 = up16 + context16        # combine
+        # Context path Stage5
+        x5_pool = self.pool(feat32)
+        x5_arm = self.arm5(feat32)
+        x5 = x5_pool + x5_arm
+        x5 = self.conv5(x5)
+        x5 = F.interpolate(x5, scale_factor=2, mode='bilinear', align_corners=True)
 
-        # Stage4 -> Stage3
-        up8 = F.interpolate(fused16, size=feat8.shape[2:], mode='bilinear', align_corners=True)
-        fused8 = up8 + feat8              # no ARM on feat8, direct sum
-        fused8 = self.context16_conv(fused8)  # reduce from 512 to 256
+        # Context path Stage4
+        x4_arm = self.arm4(feat16)
+        x4 = self.conv4(x4_arm + feat16)
+        x4 = x4 + x5
+        x4 = F.interpolate(x4, scale_factor=2, mode='bilinear', align_corners=True)
 
-        # Global context addition
-        global_ctx = self.global_pool(feat32)  # [B,256, 1, 1]
-        global_ctx = F.interpolate(global_ctx, size=fused8.shape[2:], mode='bilinear', align_corners=True)
-        fused8 = fused8 + global_ctx
+        # Feature fusion and segmentation
+        x_fuse = self.ffm(x4, feat8)
+        seg_out = self.seg_head(x_fuse)
+        seg_out = F.interpolate(seg_out, size=size, mode='bilinear', align_corners=True)
 
-        # Spatial path (detail)
-        if self.use_detail:
-            detail = self.detail_head(feat8)
-            detail = self.detail_upsample(detail)  # [B, C, H/8, W/8]
-        else:
-            detail = feat8  # fallback if no detail head
-        
-        # Feature fusion at Stage3 (1/8)
-        fused = self.fusion(detail, fused8)
+        # Detail branch
+        if self.use_detail and is_training:
+            detail_out = self.detail_head(feat8)
+            detail_out = F.interpolate(detail_out, size=size, mode='bilinear', align_corners=True)
+            return seg_out, detail_out
 
-        # Segmentation prediction
-        out = self.seg_head(fused)
-        out = self.final_upsample(out)
+        if self.use_aux and is_training:
+            return seg_out, (aux3, aux4, aux5)
 
-        if self.use_detail:
-            return out, detail
-        return out
+        return seg_out
 
-
-if __name__ == "__main__":
-    model = STDC_Seg(num_classes=19, backbone='STDC2', use_detail=True)
+if __name__ == '__main__':
+    model = STDC(num_class=19, backbone='STDC2', use_detail=True)
     inp = torch.randn(1, 3, 512, 1024)
-    out = model(inp)
+    out = model(inp, is_training=True)
+    print("Segmentation:", out[0].shape)
     if isinstance(out, tuple):
-        print("Segmentation:", out[0].shape)
-        print("Detail map:", out[1].shape)
-    else:
-        print("Segmentation:", out.shape)
+        print("Detail:", out[1].shape)
