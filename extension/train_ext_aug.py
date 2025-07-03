@@ -15,8 +15,8 @@ from torchvision.transforms import functional as TF
 from torchvision.transforms.functional import InterpolationMode
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from stdc_model import *
-#from stdc_m_andreprova import *
+#from stdc_model import *
+from stdc_m_andreprova import *
 from albumentations.pytorch import ToTensorV2
 
 
@@ -50,7 +50,7 @@ set_seed(42)
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-save_dir = os.path.join(base_path, 'checkpoints_STDC2_dataaug')
+save_dir = os.path.join(base_path, 'checkpoints_STDC2_andre')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -69,17 +69,10 @@ class LabelTransform():
 
 def get_transforms():
     train_transform = A.Compose([
-        A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5),
-        #A.RandomScale(scale_limit=(0.125, 1.5), p=0.5),  # Slight scaling
-        #A.RandomCrop(height=512, width=1024, p=0.5),  # Random crop to maintain size
-        A.HorizontalFlip(p=0.5),  # Flip horizontally
-        A.Resize(height=512, width=1024),
-
-        A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0), p=0.5),
-        A.GaussNoise(var_limit=(10.0, 50.0), p=0.5),
-        #A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, p=0.5),
-        A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),  # Low intensity
-        A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=10, val_shift_limit=10, p=0.5),  # Subtle color variation
+        A.RandomScale(scale_limit=(0.5, 2.0), p=0.5),
+        A.RandomCrop(height=512, width=1024, p=1.0),
+        A.HorizontalFlip(p=0.5),
+        A.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.05, p=0.5),
         A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2(),
     ])
@@ -131,21 +124,63 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = STDC_Seg(num_classes=19, backbone='STDC2', use_detail=True).to(device)
 
 def load_pretrained_backbone(model, pretrained_path, device):
-    """
-    Carica i pesi pre-addestrati solo per il backbone STDC2 nel modello STDC_Seg.
-    """
-    print(f"📥 Caricamento pesi pretrained da {pretrained_path}")
-    pretrained_dict = torch.load(pretrained_path, map_location=device)
-    
+    print(f"📅 Caricamento pesi pretrained da {pretrained_path}")
+    checkpoint = torch.load(pretrained_path, map_location=device)
+
+    # Estrai il dict dei pesi dal checkpoint
+    if isinstance(checkpoint, dict):
+        print("🗝️ Chiavi nel checkpoint:", list(checkpoint.keys()))
+        if 'state_dict' in checkpoint:
+            pretrained_dict = checkpoint['state_dict']
+        elif 'model' in checkpoint:
+            pretrained_dict = checkpoint['model']
+        else:
+            pretrained_dict = checkpoint
+    else:
+        pretrained_dict = checkpoint
+
     model_dict = model.state_dict()
-    
-    # Filtra i pesi del backbone per fare il load solo su quelli presenti
-    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict and "backbone" in k}
-    
-    # Aggiorna i pesi del modello
-    model_dict.update(pretrained_dict)
-    model.load_state_dict(model_dict)
-    print(f"✅ Pesi pretrained caricati nel backbone.")
+    print(f"🔍 Numero layer modello: {len(model_dict)}")
+    print(f"🔍 Numero pesi checkpoint: {len(pretrained_dict)}")
+
+    # Normalizza le chiavi del checkpoint rimuovendo prefissi tipo 'module.' o 'cp.' se presenti
+    def clean_key(k):
+        if k.startswith('module.'):
+            return k[len('module.'):]
+        elif k.startswith('cp.'):
+            return k[len('cp.'):]
+        else:
+            return k
+
+    cleaned_pretrained_dict = {clean_key(k): v for k, v in pretrained_dict.items()}
+
+    new_pretrained_dict = {}
+    missing_keys = []
+    # Identifica le chiavi mancanti nel checkpoint
+    for k in model_dict.keys():
+        if k in cleaned_pretrained_dict:
+            if model_dict[k].shape == cleaned_pretrained_dict[k].shape:
+                new_pretrained_dict[k] = cleaned_pretrained_dict[k]
+            else:
+                print(f"⚠️ Shape mismatch per '{k}': modello {model_dict[k].shape}, checkpoint {cleaned_pretrained_dict[k].shape}")
+                missing_keys.append(k)
+        else:
+            missing_keys.append(k)
+
+    # Identifica le chiavi nel checkpoint non usate dal modello (unexpected_keys)
+    unexpected_keys = [k for k in cleaned_pretrained_dict.keys() if k not in model_dict]
+
+    print(f"✅ Trovati {len(new_pretrained_dict)} pesi corrispondenti.")
+    print(f"⚠️ Chiavi modello mancanti nel checkpoint ({len(missing_keys)}): {missing_keys[:10]}")
+    print(f"⚠️ Chiavi checkpoint non usate nel modello ({len(unexpected_keys)}): {unexpected_keys[:10]}")
+
+    if not new_pretrained_dict:
+        raise ValueError("❌ Nessun peso corrispondente trovato nel file pretrained.")
+
+    model.load_state_dict(new_pretrained_dict, strict=False)
+    print(f"✅ Pesi caricati nel modello (partial load).")
+
+
 
 class_weights = torch.tensor([
     2.6, 6.9, 3.5, 3.6, 3.6, 3.8, 3.4, 3.5, 5.1, 4.7,
@@ -355,10 +390,14 @@ def main():
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}_pretrained_weight"
+    project_name = f"{var_model}_andre_3_07"
 
-    if not os.path.exists(checkpoint_path):
-        load_pretrained_backbone(model, pretrained_backbone_path,device)
+    load_pretrained_backbone(model, pretrained_backbone_path,device)
+    # Debug: verifica se il backbone è stato inizializzato
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"📊 Totale parametri: {total_params/1e6:.2f}M | Trainabili: {trainable_params/1e6:.2f}M")
+
 
     # 🔹 Ripristina da checkpoint locale se esiste
     if os.path.exists(checkpoint_path):
