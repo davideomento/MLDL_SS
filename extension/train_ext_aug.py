@@ -167,10 +167,21 @@ def load_pretrained_backbone(model, pretrained_path, device):
             missing_keys.append(k_model)
 
     # Chiavi nel checkpoint che non corrispondono a nessuna chiave modello
-    for k_checkpoint in pretrained_dict.keys():
-        k_clean = k_checkpoint.replace('module.', '')
-        if k_clean not in model_dict:
-            unexpected_keys.append(k_checkpoint)
+    for k_model in model_dict.keys():
+        k_checkpoint = k_model
+        if k_model not in pretrained_dict:
+            # Prova con 'module.' davanti
+            if 'module.' + k_model in pretrained_dict:
+                k_checkpoint = 'module.' + k_model
+            # Prova con 'cp.' davanti
+            elif 'cp.' + k_model in pretrained_dict:
+                k_checkpoint = 'cp.' + k_model
+
+        if k_checkpoint in pretrained_dict:
+            new_pretrained_dict[k_model] = pretrained_dict[k_checkpoint]
+        else:
+            missing_keys.append(k_model)
+
 
     print(f"✅ Trovati {len(new_pretrained_dict)} pesi corrispondenti.")
     print(f"⚠️ Chiavi modello mancanti nel checkpoint ({len(missing_keys)}): {missing_keys[:10]}")
