@@ -71,6 +71,7 @@ def get_transforms():
     train_transform = A.Compose([
         A.RandomScale(scale_limit=(0.5, 2.0), p=0.5),
         A.RandomCrop(height=512, width=1024, p=1.0),
+        A.Resize(height=512, width=1024),
         A.HorizontalFlip(p=0.5),
         A.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.05, p=0.5),
         A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),

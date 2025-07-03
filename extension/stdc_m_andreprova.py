@@ -164,34 +164,6 @@ class FeatureFusionModule(torch.nn.Module):
         x = torch.add(x, feature)
         return x
 
-# SPPM semplificato per il contesto globale da feat32
-class SPPM(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super().__init__()
-        self.stages = nn.ModuleList([
-            nn.AdaptiveAvgPool2d(output_size=1),
-            nn.AdaptiveAvgPool2d(output_size=2),
-            nn.AdaptiveAvgPool2d(output_size=4)
-        ])
-        self.convs = nn.ModuleList([
-            nn.Conv2d(in_channels, out_channels, 1, bias=False)
-            for _ in range(3)
-        ])
-        self.out_conv = nn.Conv2d(in_channels + 3 * out_channels, out_channels, 1)
-        self.bn = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU()
-
-    def forward(self, x):
-        H, W = x.shape[2:]
-        out = [x]
-        for stage, conv in zip(self.stages, self.convs):
-            pooled = stage(x)
-            conv_out = conv(pooled)
-            upsampled = F.interpolate(conv_out, size=(H, W), mode='bilinear', align_corners=True)
-            out.append(upsampled)
-        out = torch.cat(out, dim=1)
-        return self.relu(self.bn(self.out_conv(out)))
-
 class STDC_Seg(nn.Module):
     def __init__(self, num_classes=19, backbone='STDC2', use_detail=True):
         super(STDC_Seg, self).__init__()
@@ -215,9 +187,6 @@ class STDC_Seg(nn.Module):
         # Adjust channels after upsample
         self.context32_conv = nn.Conv2d(feat_channels[4], feat_channels[3], kernel_size=1, bias=False)
         self.context16_conv = nn.Conv2d(feat_channels[3], feat_channels[2], kernel_size=1, bias=False)
-
-        # Spatial Pyramid Pooling Module on Stage5
-        self.sppm = SPPM(in_channels=feat_channels[4], out_channels=feat_channels[2])
 
         # Global context via GAP (added to Stage3 level)
         self.global_pool = nn.Sequential(
@@ -263,18 +232,17 @@ class STDC_Seg(nn.Module):
         fused8 = self.context16_conv(fused8)  # reduce from 512 to 256
 
         # Global context addition
-        global_ctx = self.sppm(feat32)  # [B,256, H/8, W/8]
         global_ctx = self.global_pool(feat32)  # [B,256, 1, 1]
         global_ctx = F.interpolate(global_ctx, size=fused8.shape[2:], mode='bilinear', align_corners=True)
         fused8 = fused8 + global_ctx
 
         # Spatial path (detail)
         if self.use_detail:
-            detail = self.detail_head(feat2)
+            detail = self.detail_head(feat8)
             detail = self.detail_upsample(detail)  # [B, C, H/8, W/8]
         else:
-            detail = feat2  # fallback if no detail head
-
+            detail = feat8  # fallback if no detail head
+        
         # Feature fusion at Stage3 (1/8)
         fused = self.fusion(detail, fused8)
 
