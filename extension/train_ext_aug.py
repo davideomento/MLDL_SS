@@ -391,7 +391,7 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
     checkpoint_path = os.path.join(save_dir, 'checkpoints.pth')
-    pretrained_backbone_path = '/content/drive/MyDrive/checkpoints/STDC1-Seg/model_maxmIOU50.pth'  # metti qui il path corretto
+    pretrained_backbone_path = '/content/drive/MyDrive/checkpoints/STDC2-Seg/model_maxmIOU50.pth'  # metti qui il path corretto
 
     var_model = "STDC2"
     best_miou = 0
