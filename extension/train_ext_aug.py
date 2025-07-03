@@ -134,6 +134,7 @@ def load_pretrained_backbone(model, pretrained_path, device):
     print(f"📅 Caricamento pesi pretrained da {pretrained_path}")
     checkpoint = torch.load(pretrained_path, map_location=device)
 
+    # Estrai il dict dei pesi dal checkpoint
     if isinstance(checkpoint, dict):
         print("🗝️ Chiavi nel checkpoint:", list(checkpoint.keys()))
         if 'state_dict' in checkpoint:
@@ -149,39 +150,32 @@ def load_pretrained_backbone(model, pretrained_path, device):
     print(f"🔍 Numero layer modello: {len(model_dict)}")
     print(f"🔍 Numero pesi checkpoint: {len(pretrained_dict)}")
 
-    # Rimuovi 'module.' se presente (DistributedDataParallel)
+    # Normalizza le chiavi del checkpoint rimuovendo prefissi tipo 'module.' o 'cp.' se presenti
+    def clean_key(k):
+        if k.startswith('module.'):
+            return k[len('module.'):]
+        elif k.startswith('cp.'):
+            return k[len('cp.'):]
+        else:
+            return k
+
+    cleaned_pretrained_dict = {clean_key(k): v for k, v in pretrained_dict.items()}
+
     new_pretrained_dict = {}
     missing_keys = []
-    unexpected_keys = []
-
-    for k_model in model_dict.keys():
-        # cerco corrispondenza nella pretrained_dict
-        k_checkpoint = k_model
-        # prova anche con 'module.' davanti, nel caso (checkpoint ha module.)
-        if k_model not in pretrained_dict and ('module.' + k_model) in pretrained_dict:
-            k_checkpoint = 'module.' + k_model
-
-        if k_checkpoint in pretrained_dict:
-            new_pretrained_dict[k_model] = pretrained_dict[k_checkpoint]
+    # Identifica le chiavi mancanti nel checkpoint
+    for k in model_dict.keys():
+        if k in cleaned_pretrained_dict:
+            if model_dict[k].shape == cleaned_pretrained_dict[k].shape:
+                new_pretrained_dict[k] = cleaned_pretrained_dict[k]
+            else:
+                print(f"⚠️ Shape mismatch per '{k}': modello {model_dict[k].shape}, checkpoint {cleaned_pretrained_dict[k].shape}")
+                missing_keys.append(k)
         else:
-            missing_keys.append(k_model)
+            missing_keys.append(k)
 
-    # Chiavi nel checkpoint che non corrispondono a nessuna chiave modello
-    for k_model in model_dict.keys():
-        k_checkpoint = k_model
-        if k_model not in pretrained_dict:
-            # Prova con 'module.' davanti
-            if 'module.' + k_model in pretrained_dict:
-                k_checkpoint = 'module.' + k_model
-            # Prova con 'cp.' davanti
-            elif 'cp.' + k_model in pretrained_dict:
-                k_checkpoint = 'cp.' + k_model
-
-        if k_checkpoint in pretrained_dict:
-            new_pretrained_dict[k_model] = pretrained_dict[k_checkpoint]
-        else:
-            missing_keys.append(k_model)
-
+    # Identifica le chiavi nel checkpoint non usate dal modello (unexpected_keys)
+    unexpected_keys = [k for k in cleaned_pretrained_dict.keys() if k not in model_dict]
 
     print(f"✅ Trovati {len(new_pretrained_dict)} pesi corrispondenti.")
     print(f"⚠️ Chiavi modello mancanti nel checkpoint ({len(missing_keys)}): {missing_keys[:10]}")
@@ -192,6 +186,7 @@ def load_pretrained_backbone(model, pretrained_path, device):
 
     model.load_state_dict(new_pretrained_dict, strict=False)
     print(f"✅ Pesi caricati nel modello (partial load).")
+
 
 
 class_weights = torch.tensor([
