@@ -130,6 +130,23 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model = STDC_Seg(num_classes=19, backbone='STDC2', use_detail=True).to(device)
 
+def load_pretrained_backbone(model, pretrained_path, device):
+    """
+    Carica i pesi pre-addestrati solo per il backbone STDC2 nel modello STDC_Seg.
+    """
+    print(f"📥 Caricamento pesi pretrained da {pretrained_path}")
+    pretrained_dict = torch.load(pretrained_path, map_location=device)
+    
+    model_dict = model.state_dict()
+    
+    # Filtra i pesi del backbone per fare il load solo su quelli presenti
+    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict and "backbone" in k}
+    
+    # Aggiorna i pesi del modello
+    model_dict.update(pretrained_dict)
+    model.load_state_dict(model_dict)
+    print(f"✅ Pesi pretrained caricati nel backbone.")
+
 class_weights = torch.tensor([
     2.6, 6.9, 3.5, 3.6, 3.6, 3.8, 3.4, 3.5, 5.1, 4.7,
     6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
@@ -332,11 +349,16 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
     checkpoint_path = os.path.join(save_dir, 'checkpoints.pth')
+    pretrained_backbone_path = '/content/drive/MyDrive/checkpoints/STDC2-Seg/model_maxmIOU50.pth'  # metti qui il path corretto
+
     var_model = "STDC2"
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}_dataaug"
+    project_name = f"{var_model}_pretrained_weight"
+
+    if not os.path.exists(checkpoint_path):
+        load_pretrained_backbone(model, pretrained_backbone_path,device)
 
     # 🔹 Ripristina da checkpoint locale se esiste
     if os.path.exists(checkpoint_path):
