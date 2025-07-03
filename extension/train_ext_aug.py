@@ -146,24 +146,41 @@ def load_pretrained_backbone(model, pretrained_path, device):
         pretrained_dict = checkpoint
 
     model_dict = model.state_dict()
+    print(f"🔍 Numero layer modello: {len(model_dict)}")
+    print(f"🔍 Numero pesi checkpoint: {len(pretrained_dict)}")
 
-    # Rimuovi 'module.' se presente (DDP)
+    # Rimuovi 'module.' se presente (DistributedDataParallel)
     new_pretrained_dict = {}
-    for k, v in pretrained_dict.items():
-        k_clean = k.replace('module.', '')
-        if k_clean in model_dict:
-            new_pretrained_dict[k_clean] = v
+    missing_keys = []
+    unexpected_keys = []
+
+    for k_model in model_dict.keys():
+        # cerco corrispondenza nella pretrained_dict
+        k_checkpoint = k_model
+        # prova anche con 'module.' davanti, nel caso (checkpoint ha module.)
+        if k_model not in pretrained_dict and ('module.' + k_model) in pretrained_dict:
+            k_checkpoint = 'module.' + k_model
+
+        if k_checkpoint in pretrained_dict:
+            new_pretrained_dict[k_model] = pretrained_dict[k_checkpoint]
+        else:
+            missing_keys.append(k_model)
+
+    # Chiavi nel checkpoint che non corrispondono a nessuna chiave modello
+    for k_checkpoint in pretrained_dict.keys():
+        k_clean = k_checkpoint.replace('module.', '')
+        if k_clean not in model_dict:
+            unexpected_keys.append(k_checkpoint)
+
+    print(f"✅ Trovati {len(new_pretrained_dict)} pesi corrispondenti.")
+    print(f"⚠️ Chiavi modello mancanti nel checkpoint ({len(missing_keys)}): {missing_keys[:10]}")
+    print(f"⚠️ Chiavi checkpoint non usate nel modello ({len(unexpected_keys)}): {unexpected_keys[:10]}")
 
     if not new_pretrained_dict:
-        print("❌ Nessuna corrispondenza trovata. Chiavi del modello:")
-        print(list(model_dict.keys())[:10])
-        print("Chiavi checkpoint:")
-        print(list(pretrained_dict.keys())[:10])
         raise ValueError("❌ Nessun peso corrispondente trovato nel file pretrained.")
 
-    model_dict.update(new_pretrained_dict)
-    model.load_state_dict(model_dict)
-    print(f"✅ Pesi caricati: {len(new_pretrained_dict)}/{len(model_dict)} layer matched.")
+    model.load_state_dict(new_pretrained_dict, strict=False)
+    print(f"✅ Pesi caricati nel modello (partial load).")
 
 
 class_weights = torch.tensor([
