@@ -132,22 +132,22 @@ model = STDC_Seg(num_classes=19, backbone='STDC2', use_detail=True).to(device)
 
 def load_pretrained_backbone(model, pretrained_path, device):
     print(f"📅 Caricamento pesi pretrained da {pretrained_path}")
-    pretrained = torch.load(pretrained_path, map_location=device)
+    checkpoint = torch.load(pretrained_path, map_location=device)
 
-    # Cerca il dict corretto
-    if 'state_dict' in pretrained:
-        pretrained_dict = pretrained['state_dict']
-    elif 'model' in pretrained:
-        pretrained_dict = pretrained['model']
+    if isinstance(checkpoint, dict):
+        print("🗝️ Chiavi nel checkpoint:", list(checkpoint.keys()))
+        if 'state_dict' in checkpoint:
+            pretrained_dict = checkpoint['state_dict']
+        elif 'model' in checkpoint:
+            pretrained_dict = checkpoint['model']
+        else:
+            pretrained_dict = checkpoint
     else:
-        pretrained_dict = pretrained
-
-    # Stampa le prime chiavi per debug
-    print("🔑 Chiavi trovate nei pesi pretrained:", list(pretrained_dict.keys())[:10])
+        pretrained_dict = checkpoint
 
     model_dict = model.state_dict()
 
-    # Rimuovi eventuali "module." (se pesi da DDP)
+    # Rimuovi 'module.' se presente (DDP)
     new_pretrained_dict = {}
     for k, v in pretrained_dict.items():
         k_clean = k.replace('module.', '')
@@ -155,6 +155,10 @@ def load_pretrained_backbone(model, pretrained_path, device):
             new_pretrained_dict[k_clean] = v
 
     if not new_pretrained_dict:
+        print("❌ Nessuna corrispondenza trovata. Chiavi del modello:")
+        print(list(model_dict.keys())[:10])
+        print("Chiavi checkpoint:")
+        print(list(pretrained_dict.keys())[:10])
         raise ValueError("❌ Nessun peso corrispondente trovato nel file pretrained.")
 
     model_dict.update(new_pretrained_dict)
