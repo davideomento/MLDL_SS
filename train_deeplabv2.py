@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
+import wandb
 from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -18,7 +19,7 @@ from torch.utils.data import Subset
 from datasets.cityscapes import CityScapes
 from utils import poly_lr_scheduler
 from models.deeplabv2.deeplabv2 import get_deeplab_v2
-from metrics import benchmark_model, calculate_iou
+from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
 
 # =====================
 # Set Seed for Reproducibility
@@ -41,13 +42,11 @@ print("📍 Ambiente: Colab")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
 pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
-
-
 save_dir = os.path.join(base_path, 'checkpoints_deeplabv2')
 os.makedirs(save_dir, exist_ok=True)
 
 # =====================
-# Transforms
+# Label Transforms
 # =====================
 class LabelTransform():
     def __init__(self, size=(512, 1024)):
@@ -99,18 +98,11 @@ val_dataset = CityScapes(
 )
 
 
-dataset_train_size = len(train_dataset)
-subset_train_size = int(0.1 * dataset_train_size)
-random_indices = np.random.permutation(dataset_train_size)[:subset_train_size]
-train_subset = Subset(train_dataset, random_indices)
+print(f"Train dataset size: {len(train_dataset)}")
+print(f"Validation dataset size: {len(val_dataset)}")
 
-dataset_val_size = len(val_dataset)
-subset_val_size = int(0.1 * dataset_val_size)
-random_indices = np.random.permutation(dataset_val_size)[:subset_val_size]
-val_subset = Subset(val_dataset, random_indices)
-
-train_dataloader = DataLoader(train_subset, batch_size=2, shuffle=True, num_workers=2)
-val_dataloader = DataLoader(val_subset, batch_size=2, shuffle=False, num_workers=2)
+train_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=2)
 
 # =====================
 # Model, Loss, Optimizer
@@ -123,15 +115,17 @@ model = get_deeplab_v2(
     pretrain_model_path=pretrain_model_path
 ).to(device)
 
+#Provare a mettere i pesi dinamici
 class_weights = torch.tensor([
     2.6, 6.9, 3.5, 3.6, 3.6, 3.8, 3.4, 3.5, 5.1, 4.7,
     6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
 ], dtype=torch.float).to(device)
 
 criterion = nn.CrossEntropyLoss(weight = class_weights, ignore_index=255)
-optimizer = optim.SGD(model.optim_parameters(lr=0.001), momentum=0.9, weight_decay=0.0005)
+optimizer = optim.SGD(model.optim_parameters(lr=1e-3), momentum=0.9, weight_decay=0.0005)
 num_epochs = 50
-max_iter = num_epochs
+#mettere sia che cambia ogni iter che ogni epoca
+max_iter = num_epochs* len(train_dataloader)
 
 # =====================
 # Train / Validate
@@ -139,8 +133,10 @@ max_iter = num_epochs
 def train(epoch, model, train_loader, criterion, optimizer, init_lr):
     model.train()
     running_loss = 0.0
+    batch_idx = 0
     loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}")
-    poly_lr_scheduler(optimizer, init_lr, epoch, max_iter)
+    current_iter = epoch * len(train_loader) + batch_idx
+    poly_lr_scheduler(optimizer, init_lr, current_iter, max_iter)
     for batch_idx, (inputs, targets) in loop:
         inputs, targets = inputs.to(device), targets.to(device)
 
@@ -148,14 +144,38 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
         outputs = model(inputs)
         if isinstance(outputs, (tuple, list)):
             outputs = outputs[0]
-
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
 
         running_loss += loss.item()
         loop.set_postfix(loss=running_loss / (batch_idx + 1))
-    return running_loss / len(train_loader)
+    # ⬇️ Salvataggio modello e logging wandb dopo il training dell'epoca
+    mean_loss = running_loss / len(train_loader)
+    lr = optimizer.param_groups[0]['lr']  # Prende il learning rate corrente
+
+    print("Saving the model")
+    wandb.log({
+        "epoch": epoch,
+        "loss": mean_loss,
+        "lr": lr
+    },step=epoch)
+
+    model_save_path = f"model_epoch_{epoch}.pt"
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss': mean_loss,
+    }, model_save_path)
+
+    artifact = wandb.Artifact(f"model_epoch_{epoch}", type="model")
+    artifact.add_file(model_save_path)
+    wandb.log_artifact(artifact)
+
+    print(f"Model saved for epoch {epoch}")
+
+    return mean_loss
 
 CITYSCAPES_COLORS = [
     (128, 64,128), (244, 35,232), ( 70, 70, 70), (102,102,156),
@@ -215,12 +235,7 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
                 img_dn = img_tensor * std + mean
                 img_np = img_dn.permute(1,2,0).numpy()
 
-                # ===> Carica immagine _color dal filesystem
-                # 1. Prendi il percorso della label
-                label_path = val_dataset.label_paths[batch_idx]
-                # 2. Costruisci path della versione _color
-                color_path = label_path.replace('_gtFine_labelTrainIds.png', '_gtFine_color.png')
-                color_img = Image.open(color_path)
+            
 
                 fig, axes = plt.subplots(1, 3, figsize=(18, 6))
                 axes[0].imshow(img_np)
@@ -236,10 +251,10 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
                 axes[2].axis('off')
 
                 plt.tight_layout()
-                fname = f"{save_dir}/img_gt_pred_gtcolor_epoch_{epoch}.png"
-                plt.savefig(fname)
+                plt.savefig(f"validation_epoch_{epoch}.png")
                 plt.close()
-
+                wandb.log({"validation_image": wandb.Image(fig)}, step=epoch)
+                tqdm.write(f"Validation image saved for epoch {epoch}")
     # Calcolo delle metriche per epoca
     val_loss /= len(val_loader)
     val_accuracy = 100. * correct / total
@@ -247,51 +262,33 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
     miou = torch.nanmean(iou_per_class).item()
 
     print(f'Validation Loss: {val_loss:.6f} | Acc: {val_accuracy:.2f}% | mIoU: {miou:.4f}')
-    
+    if epoch == 50:
+        bench_results = benchmark_model(model)
+    else:
+        bench_results = {k: None for k in ['mean_latency','mean_fps','num_flops','trainable_params']}
+
+
     return {
         'loss': val_loss,
         'accuracy': val_accuracy,
         'miou': miou,
         'iou_per_class': iou_per_class,
         'loss_values': loss_values,
-        'accuracy_values': accuracy_values
+        'accuracy_values': accuracy_values,
+        **bench_results
     }
 
 
 
-# Modificare la funzione main per raccogliere e salvare i dati
 def main():
-    best_model_path = os.path.join(save_dir, 'best_model_bisenet.pth')
-    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet.pth')
-
-    save_every = 1
+    checkpoint_path = os.path.join(save_dir, 'checkpoint_deeplabv2.pth')
+    var_model = "Deeplabv2" 
+    init_lr = 1e-3
     best_miou = 0
     start_epoch = 1
-    init_lr = 1e-3
+    project_name = f"{var_model}_official"
 
-    # Dati per il salvataggio delle metriche
-    csv_path = os.path.join(save_dir, 'metrics.csv')
-
-    # Carica metriche precedenti se esistono
-    if os.path.exists(csv_path):
-        df = pd.read_csv(csv_path)
-        metrics_data = {
-            'epoch': df['epoch'].tolist(),
-            'train_loss': df['train_loss'].tolist(),
-            'val_loss': df['val_loss'].tolist(),
-            'val_accuracy': df['val_accuracy'].tolist(),
-            'miou': df['miou'].tolist()  
-        }
-        print("📂 Metriche precedenti caricate da metrics.csv")
-    else:
-        metrics_data = {
-            'epoch': [],
-            'train_loss': [],
-            'val_loss': [],
-            'val_accuracy': [],
-            'miou': []
-        }
-
+    # 🔹 Ripristina da checkpoint locale se esiste
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['model_state'])
@@ -299,52 +296,43 @@ def main():
         best_miou = checkpoint['best_miou']
         start_epoch = checkpoint['epoch'] + 1
         print(f"✔ Ripreso da epoca {checkpoint['epoch']} con mIoU: {best_miou:.4f}")
+    
+    # 🔹 Inizializza wandb una sola volta
+    wandb.init(
+        project=project_name,
+        entity="mldl-semseg-politecnico-di-torino",
+        name=f"run_{var_model}",
+        id = 'we5mwjaw',
+        resume="allow"
+    )
+    print("🛰️ Wandb inizializzato")
 
     for epoch in range(start_epoch, num_epochs + 1):
+
         # Training
         train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
         
         # Validation and Metrics
         val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
-        
-        # Registriamo i dati per il salvataggio
-        metrics_data['epoch'].append(epoch)
-        metrics_data['train_loss'].append(train_loss)
-        metrics_data['val_loss'].append(val_metrics['loss'])
-        metrics_data['val_accuracy'].append(val_metrics['accuracy'])
-        metrics_data['miou'].append(val_metrics['miou'])
+        save_metrics_on_wandb(epoch, train_loss, val_metrics)
 
-        # Salvataggio del modello migliore
-        if val_metrics['miou'] > best_miou:
-            best_miou = val_metrics['miou']
-            torch.save(model.state_dict(), best_model_path)
-            print(f"✅ Best model salvato con mIoU: {val_metrics['miou']:.4f}")
-
-        if epoch % save_every == 0:
-            checkpoint = {
-                'epoch': epoch,
-                'model_state': model.state_dict(),
-                'optimizer_state': optimizer.state_dict(),
-                'best_miou': best_miou
-            }
-            torch.save(checkpoint, checkpoint_path)
-            print(f"💾 Checkpoint salvato all’epoca {epoch}")
-            
-            # Salvataggio delle metriche su un unico CSV
-            df = pd.DataFrame(metrics_data)
-            # Prima di salvare
-
-            df.to_csv(csv_path, index=False)
-            print(f"📊 Metriche aggiornate in {csv_path}")
-
-    # Al termine dell'addestramento, carica il miglior modello e valida di nuovo
-    model.load_state_dict(torch.load(best_model_path))
+        # 🔹 Salva il checkpoint localmente
+        checkpoint_data = {
+            'model_state': model.state_dict(),
+            'optimizer_state': optimizer.state_dict(),
+            'epoch': epoch,
+            'best_miou': val_metrics['miou'],
+        }
+        torch.save(checkpoint_data, checkpoint_path)
+        print(f"💾 Checkpoint salvato a {checkpoint_path}")
+    
+    # Validazione finale
     validate(model, val_dataloader, criterion)
 
-    # Esegui il grafico delle metriche salvate
-    plot_metrics(metrics_data)
 
-def plot_metrics(metrics_data):
+
+
+'''def plot_metrics(metrics_data):
     # Funzione per plottare le metriche nel tempo
     df = pd.DataFrame(metrics_data)
 
@@ -385,7 +373,7 @@ def plot_metrics(metrics_data):
     plt.ylabel('IoU')
     plt.legend(loc='upper left')
     plt.grid(True)
-    plt.show()
+    plt.show()'''
 
 
 
