@@ -9,13 +9,25 @@ from models.deeplabv2.deeplabv2 import get_deeplab_v2
 import os
 from models.bisenet.build_bisenet import BiSeNet
 import wandb
+from fvcore.nn import FlopCountAnalysis
+
 
 # ================================
 # Ambiente (Colab)
 # ================================
 
-print("📍 Ambiente: Colab")
-pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
+is_colab = 'COLAB_GPU' in os.environ
+is_kaggle = os.path.exists('/kaggle')
+
+if is_colab:
+    pretrain_model_path = '/content/MLDL_SS/deeplabv2_weights.pth'
+elif is_kaggle:
+    pretrain_model_path = '/kaggle/input/deeplab-resnet-pretrained-imagenet/deeplab_resnet_pretrained_imagenet (1).pth'  # <-- verifica che il file sia lì
+else:
+    print("📍 Ambiente: Locale")
+    base_drive_path = './'
+    working_dir = './'
+
 
 
 model_deeplab = get_deeplab_v2(num_classes=19, pretrain=True, pretrain_model_path=pretrain_model_path)
@@ -123,8 +135,7 @@ def save_metrics_on_wandb(epoch, metrics_train, metrics_val):
         to_serialize[f"class_{index}_val"] = iou
 
     # Log delle metriche di training e validazione su WandB
-    if epoch != 50:
-        wandb.log(to_serialize)
+    wandb.log(to_serialize)
 
     # Salvataggio delle metriche finali al 50esimo epoch
     if epoch == 50:
