@@ -6,22 +6,28 @@ from PIL import Image
 import pandas as pd
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torchvision.transforms as transforms
+import wandb
 from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
-import torchvision.models as models
 from tqdm import tqdm
-from datasets.gta5 import GTA5
-
-#from monai.losses import DiceLoss
-from datasets.cityscapes import CityScapes
-from models.bisenet.build_bisenet import BiSeNet
-from models.bisenet.build_contextpath import build_contextpath
-from metrics import benchmark_model, calculate_iou
-from utils import poly_lr_scheduler
+from datasets import *
+import torch.nn.functional as nnF
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+from torch.utils.data import Subset
+
+
+
+#from monai.losses import DiceLoss
+from datasets.cityscapes_aug import CityScapes_aug
+from datasets.gta5 import to_tensor_no_normalization, transform_gta_to_cityscapes_label
+from datasets.gta5_aug import GTA5_aug
+from models.bisenet.build_bisenet import BiSeNet
+from models.bisenet.build_contextpath import build_contextpath
+from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
+from utils import poly_lr_scheduler
+
 
 # =====================
 # Set Seed
@@ -41,125 +47,93 @@ set_seed(42)
 # =====================
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
-data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-save_dir = os.path.join(base_path, 'checkpoints_tati3')
+data_dir_train = '/content/MLDL_SS/GTA5'
+data_dir_val = '/content/MLDL_SS/Cityscapes/Cityspaces'    
+save_dir = os.path.join(base_path, 'checkpoints_augmentation_jitter_saturation_blur_bright_noflip')#RICORDA NOFILP E L'ALTRO SONO IVERTITI
 os.makedirs(save_dir, exist_ok=True)
+
 
 
 # =====================
 # Label Transform
 # =====================
-class LabelTransform():
-    def __init__(self, size=(512, 1024)):
+class LabelTransform:
+    def __init__(self, size, id_conversion=True):
         self.size = size
+        self.id_conversion = id_conversion
 
     def __call__(self, mask):
-        mask = F.resize(mask, self.size, interpolation=Image.NEAREST)
-        return torch.as_tensor(mask, dtype=torch.long)    
+        # mask: torch.Tensor (H, W) o PIL.Image se ancora non convertita
+        if not isinstance(mask, torch.Tensor):
+            mask = to_tensor_no_normalization(mask)
 
-class GTA5LabelTransform:
-    def __init__(self, size=(512, 1024)):
-        self.size = size
+        if self.id_conversion:
+            mask = transform_gta_to_cityscapes_label(mask)  # solo per GTA5
 
-    def __call__(self, mask):
-        # Resize
-        mask = F.resize(mask, self.size, interpolation=Image.NEAREST)
-        mask_np = np.array(mask)
-        mapped_mask = map_gta5_labels(mask_np)
-        return torch.as_tensor(mapped_mask, dtype=torch.long)
-      
+        mask = mask.unsqueeze(0).unsqueeze(0).float()  # shape (1,1,H,W)
+        mask = nnF.interpolate(mask, size=self.size, mode='nearest')
+        mask = mask.squeeze().long()
+        return mask
+
 
 ###############
-
 # Trasformazione per l'immagine
-img_transform = transforms.Compose([
-    transforms.Resize((512, 1024)),  # Resize fisso
-    transforms.ToTensor(),
-    transforms.Normalize(mean=(0.485, 0.456, 0.406),
-                         std=(0.229, 0.224, 0.225)),
+img_transform_gta = A.Compose([
+        A.Resize(720, 1280),
+
+        #A.RandomResizedCrop(height=720, width=1280, scale=(0.8, 1.0), ratio=(1.7, 2.3)),
+        A.HorizontalFlip(p=0.5),
+        A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5),
+        A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0), p=0.5),
+        A.GaussNoise(var_limit=(10.0, 50.0), p=0.5),
+        #A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, p=0.5),
+        A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),  # Low intensity
+        A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=10, val_shift_limit=10, p=0.5),  # Subtle color variation
+        A.Normalize(mean=[0.485, 0.456, 0.406], 
+                    std=[0.229, 0.224, 0.225]),
+        ToTensorV2()
+    ])
+
+img_transform_cs = A.Compose([
+    A.Resize(512, 1024),
+    A.Normalize(mean=[0.485, 0.456, 0.406], 
+                std=[0.229, 0.224, 0.225]),
+    ToTensorV2()
 ])
 
-# Trasformazione per la mask (solo resize, no toTensor, no normalize)
-def mask_transform(mask):
-    return F.resize(mask, (512, 1024), interpolation=F.InterpolationMode.NEAREST)
-
-
 def get_transforms():
-    train_transform = A.Compose([
-        A.OneOf([
-            A.Resize(height=int(512 * s), width=int(1024 * s))
-            for s in [0.75, 1.0, 1.5, 1.75, 2.0]
-        ], p=1.0),
-        
-        A.PadIfNeeded(min_height=512, min_width=1024, border_mode=0),  # padding se resize più piccola
-        A.RandomCrop(height=512, width=1024),  # crop fisso
-        A.HorizontalFlip(p=0.5),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ToTensorV2()
-    ])
-
-    val_transform = A.Compose([
-        A.Resize(512, 1024),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ToTensorV2()
-    ])
-
     return {
-        'train': train_transform,
-        'val': val_transform
+        'train': (img_transform_gta), 
+        'val': (img_transform_cs)
     }
 
 
-
-
-
-
 # =====================
 # Dataset & Dataloader
 # =====================
 transforms_dict = get_transforms()
-label_transform = GTA5LabelTransform(size=(512, 1024))
-# =====================
-# Dataset & Dataloader
-# =====================
-transforms_dict = get_transforms()
-label_transform = GTA5LabelTransform(size=(512, 1024))
+label_transform_train = LabelTransform(size=(720, 1280), id_conversion=True)  # GTA5
+label_transform_val   = LabelTransform(size=(512, 1024), id_conversion=False)  # Cityscapes
 
-class AlbumentationsWrapper(torch.utils.data.Dataset):
-    def __init__(self, dataset, transform):
-        self.dataset = dataset
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.dataset)
-
-    def __getitem__(self, idx):
-        img, mask = self.dataset[idx]
-        img_np = np.array(img)
-        mask_np = np.array(mask)
-
-        augmented = self.transform(image=img_np, mask=mask_np)
-        image = augmented['image']
-        mask = torch.as_tensor(augmented['mask'], dtype=torch.long)
-
-        return image, mask
-
-train_dataset_raw = GTA5(
-    root_dir=data_dir,
-    split='train',
-    transform=lambda x: x,  # dummy
-    target_transform=lambda x: x  # dummy
+train_dataset = GTA5_aug(
+    root_dir=data_dir_train,
+    transform=transforms_dict['train'] ,
+    target_transform=label_transform_train
 )
 
-val_dataset_raw = CityScapes(
-    root_dir=data_dir,
+
+val_dataset = CityScapes_aug(
+    root_dir=data_dir_val,
     split='val',
-    transform=lambda x: x,
-    target_transform=lambda x: x
+    transform=transforms_dict['val'],
+    target_transform=label_transform_val
 )
 
-train_dataset = AlbumentationsWrapper(train_dataset_raw, transforms_dict['train'])
-val_dataset = AlbumentationsWrapper(val_dataset_raw, transforms_dict['val'])
+print(f"Train dataset size: {len(train_dataset)}")
+print(f"Validation dataset size: {len(val_dataset)}")
+
+train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=2)
+val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)
 
 # =====================
 # Model Setup
@@ -181,12 +155,10 @@ class_weights = torch.tensor([
 
 criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
 #dice_loss = DiceLoss(to_onehot_y=True, softmax=True)
-optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-4, momentum=0.9)
-# =====================
-# Poly LR Scheduler (Per Iter)
-# =====================
+optimizer = torch.optim.SGD(model.parameters(), lr=2.5e-2, weight_decay=1e-4, momentum=0.9)
+
 num_epochs = 50
-max_iter = num_epochs * len(train_dataloader)
+max_iter = num_epochs
 
 # =====================
 # Training & Validation
@@ -195,18 +167,15 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
     model.train()
     running_loss = 0.0
     loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}")
-    global_iter = (epoch - 1) * len(train_loader)
+    poly_lr_scheduler(optimizer, init_lr, epoch, max_iter)
 
     for batch_idx, (inputs, targets) in loop:
         inputs, targets = inputs.to(device), targets.to(device)
 
-        iter_count = global_iter + batch_idx
-        poly_lr_scheduler(optimizer, init_lr, iter_count, max_iter)  # <-- usa PolyLR per iterazione
         optimizer.zero_grad()
         outputs = model(inputs)
         alpha = 1
         if isinstance(outputs, (tuple, list)) and len(outputs) == 3:
-
             main_out, aux1_out, aux2_out = outputs
             loss = (
                 criterion(main_out, targets)
@@ -222,7 +191,33 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr):
         running_loss += loss.item()
         loop.set_postfix(loss=running_loss / (batch_idx + 1))
 
-    return running_loss / len(train_loader)
+    # ⬇️ Salvataggio modello e logging wandb dopo il training dell'epoca
+    mean_loss = running_loss / len(train_loader)
+    lr = optimizer.param_groups[0]['lr']  # Prende il learning rate corrente
+
+    print("Saving the model")
+    wandb.log({
+        "epoch": epoch,
+        "loss": mean_loss,
+        "lr": lr
+    },step=epoch)
+
+    model_save_path = f"model_epoch_{epoch}.pt"
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss': mean_loss,
+    }, model_save_path)
+
+    artifact = wandb.Artifact(f"model_epoch_{epoch}", type="model")
+    artifact.add_file(model_save_path)
+    wandb.log_artifact(artifact)
+
+    print(f"Model saved for epoch {epoch}")
+
+    return mean_loss
+
 
 
  
@@ -244,12 +239,11 @@ def decode_segmap(mask):
 
 
 
-def validate(model, val_loader, criterion, num_classes=19, epoch=0):
+def validate(model, val_loader, criterion, epoch, num_classes=19):
     model.eval()
     val_loss = 0
     correct = 0
     total = 0
-    total_ious = []
     loss_values = []
     accuracy_values = []
     total_intersection = torch.zeros(num_classes, dtype=torch.float64)
@@ -287,12 +281,7 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
                 img_dn = img_tensor * std + mean
                 img_np = img_dn.permute(1,2,0).numpy()
 
-                # ===> Carica immagine _color dal filesystem
-                # 1. Prendi il percorso della label
-                label_path = val_dataset.label_paths[batch_idx]
-                # 2. Costruisci path della versione _color
-                color_path = label_path.replace('_gtFine_labelTrainIds.png', '_gtFine_color.png')
-                color_img = Image.open(color_path)
+
 
                 fig, axes = plt.subplots(1, 3, figsize=(18, 6))
                 axes[0].imshow(img_np)
@@ -308,9 +297,10 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
                 axes[2].axis('off')
 
                 plt.tight_layout()
-                fname = f"{save_dir}/img_gt_pred_gtcolor_epoch_{epoch}.png"
-                plt.savefig(fname)
+                plt.savefig(f"validation_epoch_{epoch}.png")
                 plt.close()
+                wandb.log({"validation_image": wandb.Image(fig)}, step=epoch)
+                tqdm.write(f"Validation image saved for epoch {epoch}")
 
 
     # Calcolo delle metriche per epoca
@@ -320,6 +310,11 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
     miou = torch.nanmean(iou_per_class).item()
 
     print(f'Validation Loss: {val_loss:.6f} | Acc: {val_accuracy:.2f}% | mIoU: {miou:.4f}')
+
+    if epoch == 50:
+        bench_results = benchmark_model(model)
+    else:
+        bench_results = {k: None for k in ['mean_latency','mean_fps','num_flops','trainable_params']}
     
     return {
         'loss': val_loss,
@@ -327,30 +322,20 @@ def validate(model, val_loader, criterion, num_classes=19, epoch=0):
         'miou': miou,
         'iou_per_class': iou_per_class,
         'loss_values': loss_values,
-        'accuracy_values': accuracy_values
+        'accuracy_values': accuracy_values,
+        **bench_results
     }
 
 
 
 # Modificare la funzione main per raccogliere e salvare i dati
 def main():
-    best_model_path = os.path.join(save_dir, 'best_model_bisenet.pth')
-    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet.pth')
-
-    save_every = 1
+    checkpoint_path = os.path.join(save_dir, 'checkpoint_bisenet_aug3.pth')
+    var_model = "bisenet" 
     best_miou = 0
     start_epoch = 1
-    init_lr = 0.025
-
-    # Dati per il salvataggio delle metriche
-    metrics_data = {
-        'epoch': [],
-        'train_loss': [],
-        'val_loss': [],
-        'val_accuracy': [],
-        'miou': [],
-        'iou_per_class': []
-    }
+    init_lr = 2.5e-2
+    project_name = f"{var_model}_3b_jitter_bright_saturation_noise_blur"
 
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
@@ -360,92 +345,41 @@ def main():
         start_epoch = checkpoint['epoch'] + 1
         print(f"✔ Ripreso da epoca {checkpoint['epoch']} con mIoU: {best_miou:.4f}")
 
+    # 🔹 Inizializza wandb una sola volta
+    wandb.init(
+        project=project_name,
+        entity="mldl-semseg-politecnico-di-torino",
+        name=f"run_{var_model}",
+        id="lbe67c8v",                    # Questo è il punto chiave
+        resume="allow"
+    )
+    print("🛰️ Wandb inizializzato")
+
+    
     for epoch in range(start_epoch, num_epochs + 1):
+
         # Training
         train_loss = train(epoch, model, train_dataloader, criterion, optimizer, init_lr)
         
         # Validation and Metrics
         val_metrics = validate(model, val_dataloader, criterion, epoch=epoch)
-        
-        # Registriamo i dati per il salvataggio
-        metrics_data['epoch'].append(epoch)
-        metrics_data['train_loss'].append(train_loss)
-        metrics_data['val_loss'].append(val_metrics['loss'])
-        metrics_data['val_accuracy'].append(val_metrics['accuracy'])
-        metrics_data['miou'].append(val_metrics['miou'])
-        metrics_data['iou_per_class'].append(val_metrics['iou_per_class'].cpu().numpy())
+        save_metrics_on_wandb(epoch, train_loss, val_metrics)
 
-        # Salvataggio del modello migliore
-        if val_metrics['miou'] > best_miou:
-            best_miou = val_metrics['miou']
-            torch.save(model.state_dict(), best_model_path)
-            print(f"✅ Best model salvato con mIoU: {val_metrics['miou']:.4f}")
-
-        if epoch % save_every == 0:
-            checkpoint = {
-                'epoch': epoch,
-                'model_state': model.state_dict(),
-                'optimizer_state': optimizer.state_dict(),
-                'best_miou': best_miou
-            }
-            torch.save(checkpoint, checkpoint_path)
-            print(f"💾 Checkpoint salvato all’epoca {epoch}")
-            
-            # Salvataggio delle metriche su un unico CSV
-            csv_path = os.path.join(save_dir, 'metrics.csv')
-            df = pd.DataFrame(metrics_data)
-            df.to_csv(csv_path, index=False)
-            print(f"📊 Metriche aggiornate in {csv_path}")
-
-    # Al termine dell'addestramento, carica il miglior modello e valida di nuovo
-    model.load_state_dict(torch.load(best_model_path))
+        # 🔹 Salva il checkpoint localmente
+        checkpoint_data = {
+            'model_state': model.state_dict(),
+            'optimizer_state': optimizer.state_dict(),
+            'epoch': epoch,
+            'best_miou': val_metrics['miou'],
+        }
+        torch.save(checkpoint_data, checkpoint_path)
+        print(f"💾 Checkpoint salvato a {checkpoint_path}")
+    
+    # Validazione finale
     validate(model, val_dataloader, criterion)
 
-    # Esegui il grafico delle metriche salvate
-    plot_metrics(metrics_data)
 
-def plot_metrics(metrics_data):
-    # Funzione per plottare le metriche nel tempo
-    df = pd.DataFrame(metrics_data)
 
-    plt.figure(figsize=(12, 6))
-    plt.plot(df['epoch'], df['val_loss'], label='Validation Loss')
-    plt.plot(df['epoch'], df['train_loss'], label='Train Loss', linestyle='--')
-    plt.title('Loss over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    plt.figure(figsize=(12, 6))
-    plt.plot(df['epoch'], df['val_accuracy'], label='Validation Accuracy')
-    plt.title('Accuracy over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy (%)')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    plt.figure(figsize=(12, 6))
-    plt.plot(df['epoch'], df['miou'], label='mIoU')
-    plt.title('Mean IoU over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('mIoU')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    # Plot della IoU per classe (opzionale)
-    iou_per_class = np.array(df['iou_per_class'].tolist())
-    for i in range(iou_per_class.shape[1]):
-        plt.plot(df['epoch'], iou_per_class[:, i], label=f'Class {i}')
-    plt.title('IoU per Class over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('IoU')
-    plt.legend(loc='upper left')
-    plt.grid(True)
-    plt.show()
 
 
 
