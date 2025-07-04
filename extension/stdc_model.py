@@ -193,7 +193,7 @@ class SPPM(nn.Module):
         return self.relu(self.bn(self.out_conv(out)))
 
 class STDC_Seg(nn.Module):
-    def __init__(self, num_classes=19, backbone='STDC2', use_detail=True):
+    def __init__(self, num_classes=19, backbone='STDC1', use_detail=True):
         super(STDC_Seg, self).__init__()
         self.use_detail = use_detail
         self.num_classes = num_classes
@@ -270,7 +270,7 @@ class STDC_Seg(nn.Module):
         out = self.final_upsample(out)
 
         if self.use_detail:
-            detail = self.detail_head(feat2)
+            detail = self.detail_head(feat8)
             detail = self.detail_upsample(detail)
             return out, detail
 
@@ -279,7 +279,7 @@ class STDC_Seg(nn.Module):
 
 
 if __name__ == "__main__":
-    model = STDC_Seg(num_classes=19, backbone='STDC2', use_detail=True)
+    model = STDC_Seg(num_classes=19, backbone='STDC1', use_detail=True)
     inp = torch.randn(1, 3, 512, 1024)
     out = model(inp)
     if isinstance(out, tuple):

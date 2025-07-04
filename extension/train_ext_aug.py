@@ -15,8 +15,8 @@ from torchvision.transforms import functional as TF
 from torchvision.transforms.functional import InterpolationMode
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-#from stdc_model import *
-from stdc_m_andreprova import *
+from stdc_model import *
+#from stdc_m_andreprova import *
 from albumentations.pytorch import ToTensorV2
 
 
@@ -50,7 +50,7 @@ set_seed(42)
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
-save_dir = os.path.join(base_path, 'checkpoints_STDC2_andre')
+save_dir = os.path.join(base_path, 'checkpoints_STDC1_off')
 os.makedirs(save_dir, exist_ok=True)
 
 
@@ -69,11 +69,17 @@ class LabelTransform():
 
 def get_transforms():
     train_transform = A.Compose([
-        A.RandomScale(scale_limit=(0.5, 2.0), p=0.5),
-        A.RandomCrop(height=512, width=1024, p=1.0),
+        A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5),
+        #A.RandomScale(scale_limit=(0.125, 1.5), p=0.5),  # Slight scaling
+        #A.RandomCrop(height=512, width=1024, p=0.5),  # Random crop to maintain size
+        A.HorizontalFlip(p=0.5),  # Flip horizontally
         A.Resize(height=512, width=1024),
-        A.HorizontalFlip(p=0.5),
-        A.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.05, p=0.5),
+
+        A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0), p=0.5),
+        A.GaussNoise(var_limit=(10.0, 50.0), p=0.5),
+        #A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, p=0.5),
+        A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),  # Low intensity
+        A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=10, val_shift_limit=10, p=0.5),  # Subtle color variation
         A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2(),
     ])
@@ -122,7 +128,7 @@ val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_worker
 # =====================
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model = STDC_Seg(num_classes=19, backbone='STDC2', use_detail=True).to(device)
+model = STDC_Seg(num_classes=19, backbone='STDC1', use_detail=True).to(device)
 
 def load_pretrained_backbone(model, pretrained_path, device):
     print(f"📅 Caricamento pesi pretrained da {pretrained_path}")
@@ -387,11 +393,11 @@ def main():
     checkpoint_path = os.path.join(save_dir, 'checkpoints.pth')
     pretrained_backbone_path = '/content/drive/MyDrive/checkpoints/STDC2-Seg/model_maxmIOU50.pth'  # metti qui il path corretto
 
-    var_model = "STDC2"
+    var_model = "STDC1"
     best_miou = 0
     start_epoch = 1
     init_lr = 2.5e-2
-    project_name = f"{var_model}_andre_3_07"
+    project_name = f"{var_model}_official"
 
     load_pretrained_backbone(model, pretrained_backbone_path,device)
     # Debug: verifica se il backbone è stato inizializzato
