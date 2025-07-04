@@ -6,6 +6,33 @@ import torchvision.transforms as transforms
 from datasets.gta5_labels import GTA5Labels_TaskCV2017
 from torchvision.transforms import functional as F
 
+def to_tensor_no_normalization(pic):
+    """
+    Converte un'immagine PIL (o ndarray) in un tensore torch senza normalizzazione.
+    Utile per trasformare maschere di segmentazione con etichette discrete.
+    """
+    if isinstance(pic, torch.Tensor):
+        return pic.long()
+    if isinstance(pic, Image.Image):
+        return F.pil_to_tensor(pic).squeeze(0).long()
+    raise TypeError(f"Input non supportato per to_tensor_no_normalization: {type(pic)}")
+
+
+def transform_gta_to_cityscapes_label(mask):
+    """
+    Mappa gli ID delle classi GTA5 a quelli di Cityscapes.
+    Le etichette non mappate sono settate a 255 (ignore index).
+    """
+    id_to_trainid = {
+        7: 0, 8: 1, 11: 2, 12: 3, 13: 4, 17: 5, 19: 6, 20: 7, 21: 8,
+        22: 9, 23: 10, 24: 11, 25: 12, 26: 13, 27: 14, 28: 15,
+        31: 16, 32: 17, 33: 18
+    }
+    mapped = torch.full_like(mask, 255)
+    for gta_id, train_id in id_to_trainid.items():
+        mapped[mask == gta_id] = train_id
+    return mapped
+
 
 def build_gta5_to_cityscapes_mapping():
     gta_labels = GTA5Labels_TaskCV2017()
@@ -36,24 +63,19 @@ class GTA5(Dataset):
 
     def __len__(self):
         return len(self.image_paths)
-
-    def _map_labels(self, label_tensor):
-        mapped = torch.full_like(label_tensor, 255)
-        for gta_id, cityscapes_id in self.id_mapping.items():
-            mapped[label_tensor == gta_id] = cityscapes_id
-        return mapped
     
     def __getitem__(self, idx):
         img = Image.open(self.image_paths[idx]).convert("RGB")
         label = Image.open(self.label_paths[idx])
 
+        # Se self.transform è una tupla (img_transform, mask_transform)
         if self.transform:
-            img = self.transform(img)
+            img_transform, _ = self.transform
+            img = img_transform(img)
 
-        #label = F.resize(label, (720, 1280), interpolation=F.InterpolationMode.NEAREST)
         label_tensor = F.pil_to_tensor(label).squeeze(0).long()
-        label_tensor = self._map_labels(label_tensor)
+
         if self.target_transform:
             label_tensor = self.target_transform(label_tensor)
-            
+
         return img, label_tensor
