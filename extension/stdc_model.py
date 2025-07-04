@@ -233,7 +233,7 @@ class STDC_Seg(nn.Module):
         self.seg_head = SegHead(in_channels=num_classes, mid_channels=64, num_classes=num_classes)
 
         if self.use_detail:
-            self.detail_head = DetailHead(feat_channels[0]) 
+            self.detail_head = DetailHead(feat_channels[2])  # feat8 ha 256 canali
             self.detail_upsample = nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True)
 
         self.final_upsample = nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True)
