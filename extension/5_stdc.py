@@ -1,52 +1,31 @@
 import os
-import random
 from re import A
-import numpy as np
 
 import matplotlib.pyplot as plt
 from PIL import Image
 import torch
 import torch.nn as nn
-import torchvision.transforms as transforms
 import torch.nn.functional as F  
 import wandb
 import albumentations as A
 from torchvision.transforms import functional as TF
-from torchvision.transforms.functional import InterpolationMode
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from stdc_model import *
-#from stdc_m_andreprova import *
+from extension.models.stdc_model import *
 from albumentations.pytorch import ToTensorV2
-
-
-#from monai.losses import DiceLoss
-from cityscapes_aug import CityScapes_aug
-from stdc_model import STDC_Seg
-from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb, ClassImportanceWeights
-from utils import poly_lr_scheduler
-
-
-
-weights_obj = ClassImportanceWeights()
-weights = weights_obj.get_weights()
+from extension.datasets.cityscapes_aug import CityScapes_aug
+from extension.models.stdc_model import STDC_Seg
+from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
+from utils import decode_segmap, load_pretrained_backbone, poly_lr_scheduler, set_seed, get_detail_target, DetailLoss
 
 # =====================
 # Set Seed
 # =====================
-def set_seed(seed=42):
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
 set_seed(42)
 
-# =====================
-# Paths
-# =====================
+# ================================
+# Environment: Colab or Local
+# ================================
 print("📍 Ambiente: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
@@ -65,7 +44,6 @@ class LabelTransform():
         mask = TF.resize(mask, self.size, interpolation=Image.NEAREST)
         return torch.as_tensor(mask, dtype=torch.long)          
 
-###############
 
 def get_transforms():
     train_transform = A.Compose([
@@ -98,9 +76,9 @@ def get_transforms():
 
 
 
-# =====================
-# Dataset & Dataloader
-# =====================
+# ================================
+# Dataset and Dataloaders
+# ================================
 transforms_dict = get_transforms()
 label_transform = LabelTransform()
 
@@ -118,74 +96,16 @@ val_dataset = CityScapes_aug(
     target_transform=label_transform
 )
 
-
-
 train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=2)
 val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=2)
 
-# =====================
-# Model Setup
-# =====================
+# ================================
+# Model, Loss and Optimizer Setup
+# ================================
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model = STDC_Seg(num_classes=19, backbone='STDC2', use_detail=True).to(device)
 
-def load_pretrained_backbone(model, pretrained_path, device):
-    print(f"📅 Caricamento pesi pretrained da {pretrained_path}")
-    checkpoint = torch.load(pretrained_path, map_location=device)
-
-    # Estrai il dict dei pesi dal checkpoint
-    if isinstance(checkpoint, dict):
-        print("🗝️ Chiavi nel checkpoint:", list(checkpoint.keys()))
-        if 'state_dict' in checkpoint:
-            pretrained_dict = checkpoint['state_dict']
-        elif 'model' in checkpoint:
-            pretrained_dict = checkpoint['model']
-        else:
-            pretrained_dict = checkpoint
-    else:
-        pretrained_dict = checkpoint
-
-    model_dict = model.state_dict()
-    print(f"🔍 Numero layer modello: {len(model_dict)}")
-    print(f"🔍 Numero pesi checkpoint: {len(pretrained_dict)}")
-
-    # Normalizza le chiavi del checkpoint rimuovendo prefissi tipo 'module.' o 'cp.' se presenti
-    def clean_key(k):
-        if k.startswith('module.'):
-            return k[len('module.'):]
-        elif k.startswith('cp.'):
-            return k[len('cp.'):]
-        else:
-            return k
-
-    cleaned_pretrained_dict = {clean_key(k): v for k, v in pretrained_dict.items()}
-
-    new_pretrained_dict = {}
-    missing_keys = []
-    # Identifica le chiavi mancanti nel checkpoint
-    for k in model_dict.keys():
-        if k in cleaned_pretrained_dict:
-            if model_dict[k].shape == cleaned_pretrained_dict[k].shape:
-                new_pretrained_dict[k] = cleaned_pretrained_dict[k]
-            else:
-                print(f"⚠️ Shape mismatch per '{k}': modello {model_dict[k].shape}, checkpoint {cleaned_pretrained_dict[k].shape}")
-                missing_keys.append(k)
-        else:
-            missing_keys.append(k)
-
-    # Identifica le chiavi nel checkpoint non usate dal modello (unexpected_keys)
-    unexpected_keys = [k for k in cleaned_pretrained_dict.keys() if k not in model_dict]
-
-    print(f"✅ Trovati {len(new_pretrained_dict)} pesi corrispondenti.")
-    print(f"⚠️ Chiavi modello mancanti nel checkpoint ({len(missing_keys)}): {missing_keys[:10]}")
-    print(f"⚠️ Chiavi checkpoint non usate nel modello ({len(unexpected_keys)}): {unexpected_keys[:10]}")
-
-    if not new_pretrained_dict:
-        raise ValueError("❌ Nessun peso corrispondente trovato nel file pretrained.")
-
-    model.load_state_dict(new_pretrained_dict, strict=False)
-    print(f"✅ Pesi caricati nel modello (partial load).")
 
 
 
@@ -201,7 +121,9 @@ num_epochs = 50
 max_iter = num_epochs
 
 
-
+# ================================
+# Training Function
+# ================================
 def train(epoch, model, train_loader, criterion, optimizer, init_lr, λ=1.0):
     model.train()
 
@@ -266,24 +188,11 @@ def train(epoch, model, train_loader, criterion, optimizer, init_lr, λ=1.0):
 
     return mean_loss
 
-CITYSCAPES_COLORS = [
-    (128, 64,128), (244, 35,232), ( 70, 70, 70), (102,102,156),
-    (190,153,153), (153,153,153), (250,170, 30), (220,220,  0),
-    (107,142, 35), (152,251,152), ( 70,130,180), (220, 20, 60),
-    (255,  0,  0), (  0,  0,142), (  0,  0, 70), (  0, 60,100),
-    (  0, 80,100), (  0,  0,230), (119, 11, 32)
-]
-     
-def decode_segmap(mask):
-    """Converte una mappa con classi 0-18 in immagine RGB"""
-    h, w = mask.shape
-    color_mask = np.zeros((h, w, 3), dtype=np.uint8)
-    for label_id, color in enumerate(CITYSCAPES_COLORS):
-        color_mask[mask == label_id] = color
-    return color_mask
 
 
-
+# ================================
+# Validation Function
+# ================================
 def validate(model, val_loader, criterion, epoch, num_classes=19):
     model.eval()
     val_loss = 0
@@ -314,8 +223,6 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
             total_intersection += inter
             total_union += uni
 
-
-            # Salvataggio della loss e accuratezza per epoca
             loss_values.append(loss.item())
             accuracy_values.append((predicted == targets).sum().item() / targets.numel())
 
@@ -329,10 +236,7 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
                 img_dn = img_tensor * std + mean
                 img_np = img_dn.permute(1,2,0).numpy()
 
-                # ===> Carica immagine _color dal filesystem
-                # 1. Prendi il percorso della label
                 label_path = val_dataset.label_paths[batch_idx]
-                # 2. Costruisci path della versione _color
                 color_path = label_path.replace('_gtFine_labelTrainIds.png', '_gtFine_color.png')
                 color_img = Image.open(color_path)
 
@@ -356,18 +260,10 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
                 tqdm.write(f"Validation image saved for epoch {epoch}")
 
 
-    # Calcolo delle metriche per epoca
     val_loss /= len(val_loader)
     val_accuracy = 100. * correct / total
     iou_per_class = total_intersection / total_union
     miou = torch.nanmean(iou_per_class).item()
-    # Converti dizionario in lista allineata con iou_per_class
-    weight_tensor = torch.tensor([weights.get(i, 0.0) for i in range(len(iou_per_class))], device=iou_per_class.device)
-
-    # Calcolo weighted mIoU
-    valid_mask = ~torch.isnan(iou_per_class)
-    weighted_iou = torch.nansum(iou_per_class * weight_tensor) / torch.sum(weight_tensor[valid_mask])
-    wmiou = weighted_iou.item()
 
     print(f'Validation Loss: {val_loss:.6f} | Acc: {val_accuracy:.2f}% | mIoU: {miou:.4f}')
 
@@ -388,7 +284,9 @@ def validate(model, val_loader, criterion, epoch, num_classes=19):
 
 
 
-# Modificare la funzione main per raccogliere e salvare i dati
+# ================================
+# Main Training Loop
+# ================================
 def main():
     checkpoint_path = os.path.join(save_dir, 'checkpoints.pth')
     pretrained_backbone_path = '/content/drive/MyDrive/checkpoints/STDC2-Seg/model_maxmIOU50.pth'  # metti qui il path corretto

@@ -2,18 +2,19 @@ from abc import ABCMeta
 from dataclasses import dataclass
 from typing import Tuple
 
-
+# Abstract base class for GTA labels to enforce a common interface or type
 class BaseGTALabels(metaclass=ABCMeta):
-    pass
+    pass  # No implementation, serves as a base for label classes
 
-
+# Simple data container for a GTA5 label, storing its ID and RGB color
 @dataclass
 class GTA5Label:
-    ID: int
-    color: Tuple[int, int, int]
+    ID: int                  # Numeric label ID used in segmentation masks
+    color: Tuple[int, int, int]  # RGB color tuple representing the label visually
 
-
+# Class defining the GTA5 labels used in the CVPR 2017 task
 class GTA5Labels_TaskCV2017(BaseGTALabels):
+    # Define individual labels as class attributes, each with ID and color
     road = GTA5Label(ID=0, color=(128, 64, 128))
     sidewalk = GTA5Label(ID=1, color=(244, 35, 232))
     building = GTA5Label(ID=2, color=(70, 70, 70))
@@ -34,6 +35,7 @@ class GTA5Labels_TaskCV2017(BaseGTALabels):
     motocycle = GTA5Label(ID=17, color=(0, 0, 230))
     bicycle = GTA5Label(ID=18, color=(119, 11, 32))
 
+    # List holding all label instances for easy iteration and access
     list_ = [
         road,
         sidewalk,
@@ -58,5 +60,6 @@ class GTA5Labels_TaskCV2017(BaseGTALabels):
 
     @property
     def support_id_list(self):
+        # Returns a list of all label IDs defined above
         ret = [label.ID for label in self.list_]
         return ret

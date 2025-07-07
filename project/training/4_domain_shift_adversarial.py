@@ -28,20 +28,12 @@ from datasets.cityscapes_aug import CityScapes_aug
 from models.bisenet.build_bisenet import BiSeNet
 from models.bisenet.build_contextpath import build_contextpath
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
-from utils import poly_lr_scheduler
+from utils import adjust_lambda_adv, poly_lr_scheduler, set_seed, decode_segmap, bce_with_logits_ignore
 
 
 # =====================
 # Set Seed
 # =====================
-def set_seed(seed=42):
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
 set_seed(42)
 
 # =====================
@@ -56,7 +48,7 @@ os.makedirs(save_dir, exist_ok=True)
 
 
 # =====================
-# Label Transform
+# Label Transform class for mask preprocessing
 # =====================
 class LabelTransform:
     def __init__(self, size, id_conversion=True):
@@ -77,18 +69,13 @@ class LabelTransform:
         return mask
 
 
-###############
-
-# Trasformazione per l'immagine
+# =====================
+# Image Transforms for GTA5 and Cityscapes datasets
+# =====================
 img_transform_gta = A.Compose([
         A.Resize(720, 1280),
-
-        #A.RandomResizedCrop(height=720, width=1280, scale=(0.8, 1.0), ratio=(1.7, 2.3)),
-        #A.HorizontalFlip(p=0.5),
         A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.5),
         A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0), p=0.5),
-        #A.GaussNoise(var_limit=(10.0, 50.0), p=0.5),
-        #A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, p=0.5),
         A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),  # Low intensity
         A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=10, val_shift_limit=10, p=0.5),  # Subtle color variation
         A.Normalize(mean=[0.485, 0.456, 0.406], 
@@ -113,7 +100,7 @@ def get_transforms():
     
 
 # =====================
-# Dataset & Dataloader
+# Target and Source Dataset and DataLoader setup
 # =====================
 transforms_dict = get_transforms()
 label_transform_train = LabelTransform(size=(720, 1280), id_conversion=True)  # GTA5
@@ -129,8 +116,7 @@ train_target_dataset = CityScapes_aug(
     root_dir=data_dir_val,
     split='train',
     transform=transforms_dict['val'],
-    #target_transform=label_transform_val
-    target_transform=None  # Nessuna supervisione nel target
+    target_transform=None 
 
 )
 
@@ -140,29 +126,12 @@ val_dataset = CityScapes_aug(
     transform=transforms_dict['val'],
     target_transform=label_transform_val
 )
-
-'''subset_size = int(len(train_source_dataset) * 0.05)
-subset_indices = list(range(subset_size))
-
-source_subset = Subset(train_source_dataset, subset_indices)
-target_subset = Subset(train_target_dataset, subset_indices)  # o train_source_dataset se vuoi
-
-source_dataloader = DataLoader(source_subset, batch_size=6, shuffle=True, num_workers=2)
-target_dataloader = DataLoader(target_subset, batch_size=6, shuffle=True, num_workers=2)
-
-val_subset = Subset(val_dataset, list(range(int(len(val_dataset) * 0.1))))
-val_dataloader = DataLoader(val_subset, batch_size=8, shuffle=False, num_workers=2)'''
-
-# Dataloader per il dominio sorgente (GTA5)
 source_dataloader = DataLoader(train_source_dataset, batch_size=6, shuffle=True, num_workers=2)
 
-# Dataloader per il dominio target (Cityscapes, ma senza label supervisionate)
 target_dataloader = DataLoader(train_target_dataset, batch_size=6, shuffle=True, num_workers=2)
 
 val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)
 
-
-# output stride e numero classi corrispondono all'output di BiSeNet
 num_classes = 19
 discriminator = FCDiscriminator(input_channels=num_classes).cuda()
 
@@ -172,13 +141,14 @@ discriminator = FCDiscriminator(input_channels=num_classes).cuda()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-# Costruisci context path e BiSeNet in modo modulare
+# Build context path and BiSeNet model modularly
 context_path = build_contextpath(
     name='resnet18',
 )
 
 model = BiSeNet(num_classes=19, context_path='resnet18').cuda()
 
+# Class weights for CrossEntropyLoss (to handle class imbalance)
 class_weights = torch.tensor([
     2.6, 6.9, 3.5, 3.6, 3.6, 3.8, 3.4, 3.5, 5.1, 4.7,
     6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
@@ -188,10 +158,6 @@ class_weights = torch.tensor([
 optimizer_seg = torch.optim.SGD(model.parameters(), lr=2.5e-4)
 optimizer_disc = torch.optim.SGD(discriminator.parameters(), lr=1e-4)
 
-def bce_with_logits_ignore(pred, target, ignore_index=255):
-    mask = (target != ignore_index)
-    loss = F.binary_cross_entropy_with_logits(pred, target.float(), reduction='none')
-    return loss[mask].mean()
 
 criterion_seg = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
 criterion_adv = nn.BCEWithLogitsLoss()
@@ -200,11 +166,9 @@ criterion_adv = nn.BCEWithLogitsLoss()
 num_epochs = 50
 max_iter = num_epochs
 
-def adjust_lambda_adv(current_epoch, max_epoch = 50, max_lambda=0.1, start_lambda=0.01):
-    progress = current_epoch / max_epoch
-    return start_lambda + (max_lambda - start_lambda) * progress
-
-
+# =====================
+# Training function
+# =====================
 def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, criterion_adv, optimizer_seg, optimizer_disc, lr_seg, lr_disc):
     model.train()
     discriminator.train()
@@ -212,6 +176,7 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
     running_loss = 0.0
     loop = tqdm(zip(source_dataloader, target_dataloader), total=min(len(source_dataloader), len(target_dataloader)), desc=f"Epoch {epoch}")
 
+    # Adjust learning rate with polynomial decay
     poly_lr_scheduler(optimizer_seg, lr_seg, epoch, max_iter)
     poly_lr_scheduler(optimizer_disc, lr_disc, epoch, max_iter)
 
@@ -220,7 +185,7 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
         inputs_t = inputs_t.to(device)
 
         # ======================
-        # 1. Segmentazione - Source
+        # 1. Segmentation - Source
         # ======================
         optimizer_seg.zero_grad()
         outputs_s = model(inputs_s)
@@ -240,7 +205,7 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
         optimizer_seg.step()
 
         # ======================
-        # 2. Discriminatore (solo dopo 5 epoche)
+        # 2. Discriminator (only after 5 epochs)
         # ======================
         if epoch > 5:
             optimizer_disc.zero_grad()
@@ -260,7 +225,7 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
             loss_disc = torch.tensor(0.0, device=device)
 
         # ======================
-        # 3. Adversarial loss sul segmentatore (solo dopo 5 epoche)
+        # 3. Adversarial loss on segmentator (only after 5 epochs)
         # ======================
         if epoch > 5:
             optimizer_seg.zero_grad()
@@ -281,8 +246,6 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
         running_loss += loss_seg.item() + lambda_adv * loss_adv.item() + loss_disc.item()
         loop.set_postfix(loss=running_loss / (batch_idx + 1))
 
-
-    # ⬇️ Salvataggio modello e logging wandb dopo il training dell'epoca
     mean_loss = running_loss / len(loop)
     lr_seg = optimizer_seg.param_groups[0]['lr']  # Prende il learning rate corrente
     lr_disc = optimizer_disc.param_groups[0]['lr']  # Prende il learning rate corrente
@@ -311,26 +274,9 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
 
     return mean_loss
 
-
-
-CITYSCAPES_COLORS = [
-    (128, 64,128), (244, 35,232), ( 70, 70, 70), (102,102,156),
-    (190,153,153), (153,153,153), (250,170, 30), (220,220,  0),
-    (107,142, 35), (152,251,152), ( 70,130,180), (220, 20, 60),
-    (255,  0,  0), (  0,  0,142), (  0,  0, 70), (  0, 60,100),
-    (  0, 80,100), (  0,  0,230), (119, 11, 32)
-]
-     
-def decode_segmap(mask):
-    """Converte una mappa con classi 0-18 in immagine RGB"""
-    h, w = mask.shape
-    color_mask = np.zeros((h, w, 3), dtype=np.uint8)
-    for label_id, color in enumerate(CITYSCAPES_COLORS):
-        color_mask[mask == label_id] = color
-    return color_mask
-
-
-
+# =====================
+# Validation function with metrics computation and visualization
+# =====================
 def validate(model, val_dataloader, criterion_seg, epoch, num_classes=19):
     model.eval()
     val_loss = 0
@@ -358,8 +304,6 @@ def validate(model, val_dataloader, criterion_seg, epoch, num_classes=19):
             total_intersection += inter
             total_union += uni
 
-
-            # Salvataggio della loss e accuratezza per epoca
             loss_values.append(loss.item())
             accuracy_values.append((predicted == targets).sum().item() / targets.numel())
 
@@ -399,8 +343,6 @@ def validate(model, val_dataloader, criterion_seg, epoch, num_classes=19):
                 wandb.log({"validation_image": wandb.Image(fig)}, step=epoch)
                 tqdm.write(f"Validation image saved for epoch {epoch}")
 
-
-    # Calcolo delle metriche per epoca
     val_loss /= len(val_dataloader)
     val_accuracy = 100. * correct / total
     iou_per_class = total_intersection / total_union
@@ -425,7 +367,9 @@ def validate(model, val_dataloader, criterion_seg, epoch, num_classes=19):
 
 
 
-# Modificare la funzione main per raccogliere e salvare i dati
+# =====================
+# Main function to handle training, validation, and checkpointing
+# =====================
 def main():
     checkpoint_path = os.path.join(save_dir, 'checkpoint.pth')
     var_model = "bisenet_adversarial" 
