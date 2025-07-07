@@ -11,10 +11,9 @@ import albumentations as A
 from torchvision.transforms import functional as TF
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from extension.models.stdc_model import *
+from models.stdc_model import *
 from albumentations.pytorch import ToTensorV2
 from datasets.cityscapes_aug import CityScapes_aug
-from models.stdc_model import STDC_Seg
 from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
 from utils import decode_segmap, load_pretrained_backbone, poly_lr_scheduler, set_seed, get_detail_target, DetailLoss
 
