@@ -29,7 +29,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # =====================
 # Paths
 # =====================
-print("\ud83d\udccd Environment: Colab (Drive)")
+print("📍 Environment: Colab (Drive)")
 base_path = '/content/drive/MyDrive/Project_MLDL'
 data_dir = '/content/MLDL_SS/Cityscapes/Cityspaces'
 save_dir = os.path.join(base_path, 'checkpoints_bisenet_official')
