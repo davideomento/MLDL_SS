@@ -174,7 +174,7 @@ def bce_with_logits_ignore(pred, target, ignore_index=255):
 # ================================
 # Linearly Adjust Adversarial Lambda Parameter Over Epochs
 # ================================
-def adjust_lambda_adv(current_epoch, max_epoch=50, max_lambda=0.1, start_lambda=0.01):
+def adjust_lambda_adv(current_epoch, max_epoch=50, max_lambda=0.3, start_lambda=0.05):
     """
     Linearly increases adversarial loss weighting factor lambda during training.
 
