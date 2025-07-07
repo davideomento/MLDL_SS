@@ -185,7 +185,7 @@ class STDC_Seg(nn.Module):
         self.seg_head = SegHead(in_channels=num_classes, mid_channels=64, num_classes=num_classes)
 
         if self.use_detail:
-            self.detail_head = DetailHead(feat_channels[0])
+            self.detail_head = DetailHead(feat_channels[2])
             self.detail_upsample = nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True)
 
         self.final_upsample = nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True)
@@ -218,7 +218,7 @@ class STDC_Seg(nn.Module):
         out = self.final_upsample(out)
 
         if self.use_detail:
-            detail = self.detail_head(feat2)
+            detail = self.detail_head(feat8)
             detail = self.detail_upsample(detail)
             return out, detail
 
