@@ -1,34 +1,22 @@
 import os
-import random
-import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
-import pandas as pd
 import torch
 import torch.nn as nn
-import torchvision.transforms as transforms
 import wandb
-from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from datasets.gta5_aug import *
-from datasets.gta5 import transform_gta_to_cityscapes_label, to_tensor_no_normalization
+from datasets.dataset_gta5.gta5_aug import *
+from datasets.dataset_gta5.gta5 import transform_gta_to_cityscapes_label, to_tensor_no_normalization
 import torch.nn.functional as nnF
-from models.discriminator import FCDiscriminator
+from utils.discriminator import FCDiscriminator
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
-from torch.utils.data import Subset
-import torch.nn.functional as F
-
-
-
-
-#from monai.losses import DiceLoss
-from datasets.cityscapes_aug import CityScapes_aug
+from datasets.dataset_cityscapes.cityscapes_aug import CityScapes_aug
 from models.bisenet.build_bisenet import BiSeNet
 from models.bisenet.build_contextpath import build_contextpath
-from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
-from utils import adjust_lambda_adv, poly_lr_scheduler, set_seed, decode_segmap, bce_with_logits_ignore
+from utils.metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
+from utils.utils import adjust_lambda_adv, poly_lr_scheduler, set_seed, decode_segmap, bce_with_logits_ignore
 
 
 # =====================

@@ -1,6 +1,4 @@
 import os
-from re import A
-
 import matplotlib.pyplot as plt
 from PIL import Image
 import torch
@@ -11,14 +9,11 @@ import albumentations as A
 from torchvision.transforms import functional as TF
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from models.stdc_model import *
+from models.STDC.stdc_model import *
 from albumentations.pytorch import ToTensorV2
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from datasets.cityscapes_aug import CityScapes_aug
-from metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
-from utils import decode_segmap, load_pretrained_backbone, poly_lr_scheduler, set_seed, get_detail_target, DetailLoss
+from datasets.dataset_cityscapes.cityscapes_aug import CityScapes_aug
+from utils.metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
+from utils.utils import decode_segmap, load_pretrained_backbone, poly_lr_scheduler, set_seed, get_detail_target, DetailLoss
 
 # =====================
 # Set Seed
