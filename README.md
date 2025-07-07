@@ -3,7 +3,7 @@ Semantic segmentation project 2025!
 
 MLML_SemanticSegmentation/
 │
-├── extension/                # STDC1 and STDC2 implementation withe changes
+├── datasets/                # STDC1 and STDC2 implementation withe changes
 │   ├── datasets/           # Componenti riutilizzabili
 │       ├── cityscapes_aug.py
 │       └── cityscapes.py
