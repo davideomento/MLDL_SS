@@ -13,7 +13,8 @@ from models.STDC.stdc_model import *
 from albumentations.pytorch import ToTensorV2
 from datasets.dataset_cityscapes.cityscapes_aug import CityScapes_aug
 from utils.metrics import benchmark_model, calculate_iou, save_metrics_on_wandb
-from utils.utils import decode_segmap, load_pretrained_backbone, poly_lr_scheduler, set_seed, get_detail_target, DetailLoss
+from utils.utils import decode_segmap, load_pretrained_backbone, poly_lr_scheduler, set_seed
+from models.STDC.stdc_model import  get_detail_target, DetailLoss
 
 # =====================
 # Set Seed
