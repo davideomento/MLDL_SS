@@ -1,8 +1,6 @@
 import os
 from PIL import Image
-import torch
 from torch.utils.data import Dataset
-from torchvision.transforms import functional as F
 import numpy as np
 
 class GTA5_aug(Dataset):

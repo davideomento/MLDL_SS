@@ -2,7 +2,7 @@ import os
 from PIL import Image
 import torch
 from torch.utils.data import Dataset
-from project.datasets.gta.gta5_labels import GTA5Labels_TaskCV2017
+from gta5_labels import GTA5Labels_TaskCV2017
 from torchvision.transforms import functional as F
 
 
