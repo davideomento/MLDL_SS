@@ -8,7 +8,6 @@ from torchvision.transforms import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import wandb
-
 # Custom modules (already present in the project)
 from datasets.dataset_cityscapes.cityscapes import CityScapes
 from models.bisenet.build_bisenet import BiSeNet
