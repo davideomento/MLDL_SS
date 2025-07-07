@@ -2,8 +2,9 @@ import torch
 import random
 import numpy as np
 import torchvision.transforms as transforms
-from torchvision.transforms import functional as F
-from PIL import Image
+from torchvision.transforms import functional as TF
+import torch.nn.functional as F
+
 
 # ================================
 # Polynomial Learning Rate Scheduler
@@ -95,7 +96,7 @@ def mask_transform(mask):
     Returns:
         resized mask.
     """
-    return F.resize(mask, (512, 1024), interpolation=F.InterpolationMode.NEAREST)
+    return F.resize(mask, (512, 1024), interpolation=TF.InterpolationMode.NEAREST)
 
 # ================================
 # Compose Image and Mask Transforms for Training and Validation
@@ -247,3 +248,29 @@ def load_pretrained_backbone(model, pretrained_path, device):
 
     model.load_state_dict(new_pretrained_dict, strict=False)
     print(f"✅ Pesi caricati nel modello (partial load).")
+
+
+def get_detail_target(label):
+    """
+    Computes binary edge maps from label maps to supervise the detail branch.
+
+    Args:
+        label (Tensor): Tensor of shape (B, H, W), with class indices per pixel.
+
+    Returns:
+        Tensor: Binary edge map of shape (B, 1, H, W), where edges between classes are marked as 1.
+    """
+    if label.dim() != 3:
+        raise ValueError("Expected label of shape (B, H, W)")
+
+    edge = torch.zeros(label.size(0), 1, label.size(1), label.size(2), dtype=torch.float32, device=label.device)
+
+    for i in range(label.size(0)):
+        l = label[i]
+        # Compare each pixel with its neighbors (left-right and top-bottom)
+        lx = F.pad(l, (0, 1, 0, 0))[:, 1:] != F.pad(l, (1, 0, 0, 0))[:, :-1]
+        ly = F.pad(l, (0, 0, 0, 1))[1:, :] != F.pad(l, (0, 0, 1, 0))[:-1, :]
+        # Mark as edge where class changes between adjacent pixels
+        edge[i, 0] = (lx | ly).float()
+
+    return edge
