@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from stdcnet import STDCNet813, STDCNet1446
+from models.STDC.stdcnet import STDCNet813, STDCNet1446
 
 # Semantic segmentation head: 3x3 conv -> BN -> ReLU -> 1x1 conv
 class SegHead(nn.Module):
