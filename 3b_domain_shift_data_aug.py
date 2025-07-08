@@ -114,7 +114,7 @@ val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_worker
 
 
 # =====================
-# Model Setup
+# Model Setup 
 # =====================
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -131,7 +131,7 @@ max_iter = num_epochs
 
 
 # =====================
-# Training
+# Training function with polynomial decay learning rate
 # =====================
 def train(epoch, model, train_loader, criterion, optimizer, init_lr):
     model.train()

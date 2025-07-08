@@ -123,7 +123,7 @@ max_iter = num_epochs
 
 
 # =====================
-# Training function
+# Training function with polynomial decay learning rate
 # =====================
 def train(epoch, model, train_loader, criterion, optimizer, init_lr):
     model.train()
