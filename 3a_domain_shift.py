@@ -114,13 +114,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 context_path = build_contextpath(name='resnet18')
 model = BiSeNet(num_classes=19, context_path='resnet18').to(device)
 
-# Class weights for CrossEntropyLoss (to handle class imbalance)
-class_weights = torch.tensor([
-    2.6, 6.9, 3.5, 3.6, 3.6, 3.8, 3.4, 3.5, 5.1, 4.7,
-    6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
-], dtype=torch.float).to(device)
 
-criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
+criterion = nn.CrossEntropyLoss(ignore_index=255)
 optimizer = torch.optim.SGD(model.parameters(), lr=2.5e-2, weight_decay=1e-4, momentum=0.9)
 
 num_epochs = 50

@@ -136,18 +136,13 @@ context_path = build_contextpath(
 
 model = BiSeNet(num_classes=19, context_path='resnet18').cuda()
 
-# Class weights for CrossEntropyLoss (to handle class imbalance)
-class_weights = torch.tensor([
-    2.6, 6.9, 3.5, 3.6, 3.6, 3.8, 3.4, 3.5, 5.1, 4.7,
-    6.2, 5.2, 4.9, 3.6, 4.3, 5.6, 6.5, 7.0, 6.6
-], dtype=torch.float).to(device)
 
 
 optimizer_seg = torch.optim.SGD(model.parameters(), lr=2.5e-4)
 optimizer_disc = torch.optim.SGD(discriminator.parameters(), lr=1e-4)
 
 
-criterion_seg = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
+criterion_seg = nn.CrossEntropyLoss(ignore_index=255)
 criterion_adv = nn.BCEWithLogitsLoss()
 
 
