@@ -215,13 +215,13 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
             outputs_t = model(inputs_t)
             pred_t = discriminator(torch.softmax(outputs_t[0], dim=1))
 
-            loss_adv = bce_with_logits_ignore(pred_t, torch.ones_like(pred_t))  # il segmentatore cerca di "ingannare" il discriminatore
+            loss_adv = bce_with_logits_ignore(pred_t, torch.ones_like(pred_t)) 
             lambda_adv = adjust_lambda_adv(current_epoch=epoch)
             (lambda_adv * loss_adv).backward()
             optimizer_seg.step()
         else:
             loss_adv = torch.tensor(0.0, device=device)
-            lambda_adv = 0.0  # per chiarezza, anche se non usato
+            lambda_adv = 0.0 
 
         # ======================
         # 4. Logging
@@ -230,8 +230,8 @@ def train(epoch, model, source_dataloader, target_dataloader, criterion_seg, cri
         loop.set_postfix(loss=running_loss / (batch_idx + 1))
 
     mean_loss = running_loss / len(loop)
-    lr_seg = optimizer_seg.param_groups[0]['lr']  # Prende il learning rate corrente
-    lr_disc = optimizer_disc.param_groups[0]['lr']  # Prende il learning rate corrente
+    lr_seg = optimizer_seg.param_groups[0]['lr']  
+    lr_disc = optimizer_disc.param_groups[0]['lr']  
     print("Saving the model")
     wandb.log({
         "epoch": epoch,
