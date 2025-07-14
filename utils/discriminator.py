@@ -15,7 +15,7 @@ class FCDiscriminator(nn.Module):
         self.leaky_relu = nn.LeakyReLU(0.2, inplace=True)
 
     def forward(self, x):
-        # Input x shape: [B, C, H, W], C = numero classi (output softmaxato)
+        # Input x shape: [B, C, H, W], C = number of channels
         
         x = self.leaky_relu(self.conv1(x))  # [B, 64, H/2, W/2]
         x = self.leaky_relu(self.conv2(x))  # [B, 128, H/4, W/4]
